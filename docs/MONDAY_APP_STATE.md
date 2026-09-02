@@ -17,6 +17,19 @@ This file records non-secret Developer Center metadata for development safety. V
 | Build directory | `./dist` |
 | Intended development hosting | monday client-side code / CDN deployment |
 
+## Client-side CDN deployment (Milestone 2)
+
+| Field | Value |
+| --- | --- |
+| Deployment date | 2026-09-02 |
+| CLI version | `@mondaycom/apps-cli` 4.10.8 |
+| Command | `mapps code:push --client-side -s -d ./dist -i 17506248` |
+| CDN URL | `https://v0db73a92e586e9b83ce92ef3094ca4eb.cdn2.monday.app` |
+| Build category | `view` (client-side CDN) |
+| Source archive | `https://v0db73a92e586e9b83ce92ef3094ca4eb.cdn2.monday.app/source/13296729.zip` |
+| Security scan | Passed (`-s` flag used) |
+| Feature binding | Requires manual step in Developer Center (see below) |
+
 ## Deployment boundary
 
 - The canonical target is the existing draft version `17506248`, after verifying it is still current.
