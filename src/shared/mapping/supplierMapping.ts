@@ -1,4 +1,4 @@
-import type { MappingIssue, MappingIssueKind, MondayBoardDescriptor, SupplierFieldKey, SupplierFieldMapping } from '../types/domain';
+import type { MappingIssue, MappingIssueKind, MondayBoardDescriptor, MondayItemDescriptor, SourceWarning, SupplierFieldKey, SupplierFieldMapping, SupplierInput } from '../types/domain';
 
 export const supplierFieldDefinitions: Array<{ key: SupplierFieldKey; label: string; required: boolean }> = [
   { key: 'name', label: 'Supplier Name', required: true },
@@ -49,4 +49,72 @@ export function previewMappedSuppliers(board: MondayBoardDescriptor, mappings: S
     }
     return result;
   });
+}
+
+export interface TransformResult {
+  input: SupplierInput | null;
+  warnings: SourceWarning[];
+}
+
+export function transformMondayItemToInput(
+  item: MondayItemDescriptor,
+  mappings: SupplierFieldMapping[],
+): TransformResult {
+  const warnings: SourceWarning[] = [];
+  const raw: Record<string, string | null> = {};
+
+  for (const mapping of mappings) {
+    const value = mapping.mondayColumnId === 'name' ? item.name : item.columnValues[mapping.mondayColumnId] ?? null;
+    raw[mapping.supplierField] = value;
+  }
+
+  const name = (raw['name'] ?? '').trim();
+  if (!name) {
+    warnings.push({ itemId: item.id, field: 'name', message: 'Missing required Supplier Name.' });
+    return { input: null, warnings };
+  }
+
+  const ratingRaw = raw['rating'] ? Number(raw['rating']) : undefined;
+  const rating = ratingRaw != null && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : undefined;
+  if (raw['rating'] && rating === undefined) {
+    warnings.push({ itemId: item.id, field: 'rating', message: `Rating "${raw['rating']}" is not a valid 1–5 integer; field ignored.` });
+  }
+
+  const input: SupplierInput = {
+    name,
+    supplierCode: raw['supplierCode'] ?? undefined,
+    status: normalizeStatus(raw['status']) ?? 'ACTIVE',
+    category: raw['category'] ?? undefined,
+    country: raw['country'] ?? undefined,
+    primaryContactName: raw['primaryContactName'] ?? undefined,
+    email: raw['email'] ?? undefined,
+    phone: raw['phone'] ?? undefined,
+    currency: raw['currency']?.toUpperCase() ?? undefined,
+    paymentTerms: raw['paymentTerms'] ?? undefined,
+    preferred: normalizeBoolean(raw['preferred']),
+    rating,
+    sourceType: 'MONDAY_BOARD',
+    mondayItemId: item.id,
+  };
+
+  return { input, warnings };
+}
+
+function normalizeStatus(raw: string | null | undefined): 'ACTIVE' | 'PENDING' | 'INACTIVE' | 'BLOCKED' | undefined {
+  if (!raw) return undefined;
+  const upper = raw.trim().toUpperCase();
+  if (upper === 'ACTIVE' || upper === 'PENDING' || upper === 'INACTIVE' || upper === 'BLOCKED') return upper;
+  const aliases: Record<string, 'ACTIVE' | 'PENDING' | 'INACTIVE' | 'BLOCKED'> = {
+    'ACTIVE': 'ACTIVE', 'APPROVED': 'ACTIVE', 'ENABLED': 'ACTIVE',
+    'PENDING': 'PENDING', 'ONBOARDING': 'PENDING', 'NEW': 'PENDING',
+    'INACTIVE': 'INACTIVE', 'DISABLED': 'INACTIVE', 'ARCHIVED': 'INACTIVE',
+    'BLOCKED': 'BLOCKED', 'SUSPENDED': 'BLOCKED', 'BANNED': 'BLOCKED',
+  };
+  return aliases[upper];
+}
+
+function normalizeBoolean(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const lower = raw.trim().toLowerCase();
+  return lower === 'true' || lower === 'yes' || lower === '1' || lower === 'checked';
 }

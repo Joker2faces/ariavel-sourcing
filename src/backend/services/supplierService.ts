@@ -1,6 +1,6 @@
-import { previewMappedSuppliers, validateSupplierBoardMapping } from '../../shared/mapping/supplierMapping';
-import type { MondayBoardDescriptor, SupplierFieldMapping, SupplierInput, SupplierSourceConfiguration, SupplierStatus } from '../../shared/types/domain';
-import { validateSupplierInput, type SupplierValidationErrors } from '../../shared/validation/supplierValidation';
+import { previewMappedSuppliers, transformMondayItemToInput, validateSupplierBoardMapping } from '../../shared/mapping/supplierMapping';
+import type { MondayBoardDescriptor, SourceWarning, Supplier, SupplierFieldMapping, SupplierInput, SupplierSourceConfiguration, SupplierStatus } from '../../shared/types/domain';
+import { normalizeSupplierInput, validateSupplierInput, type SupplierValidationErrors } from '../../shared/validation/supplierValidation';
 import type { MondayBoardProvider } from '../providers/mondayBoardProvider';
 import type { SupplierRepository } from '../repositories/supplierRepository';
 import type { TenantContextProvider } from '../tenancy/tenantContext';
@@ -42,6 +42,44 @@ export function createSupplierService(repository: SupplierRepository, tenantProv
         });
       }
       return repository.saveSourceConfiguration(tenant(), configuration);
+    },
+
+    async listBoardSuppliers(): Promise<{ suppliers: Supplier[]; warnings: SourceWarning[] }> {
+      const config = await repository.getSourceConfiguration(tenant());
+      if (!config || config.mode !== 'MONDAY_BOARD') return { suppliers: [], warnings: [] };
+      if (!boardProvider.listBoardItems) return { suppliers: [], warnings: [] };
+
+      const { boardId, fieldMappings } = config.boardMapping;
+      const allWarnings: SourceWarning[] = [];
+      const suppliers: Supplier[] = [];
+      const MAX_PAGES = 20;
+      let cursor: string | undefined;
+      let page = 0;
+
+      do {
+        const result = await boardProvider.listBoardItems(boardId, cursor);
+        for (const item of result.items) {
+          const { input, warnings } = transformMondayItemToInput(item, fieldMappings);
+          allWarnings.push(...warnings);
+          if (input) {
+            const normalized = normalizeSupplierInput(input);
+            const supplier: Supplier = {
+              ...normalized,
+              id: `monday:${boardId}:${item.id}`,
+              tenantId: tenant().tenantId,
+              mondayBoardId: boardId,
+              mondayItemId: item.id,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            suppliers.push(supplier);
+          }
+        }
+        cursor = result.nextCursor ?? undefined;
+        page++;
+      } while (cursor && page < MAX_PAGES);
+
+      return { suppliers, warnings: allWarnings };
     },
   };
 }

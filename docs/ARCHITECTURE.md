@@ -1,8 +1,16 @@
 # Architecture
 
-The app is a React + TypeScript + Vite client designed to run as a monday Custom Object. `App` composes the shell and feature UI; domain types and validation live under `src/shared`; data access is behind `SourcingRepository` and consumed by `sourcingService`.
+The app is a React + TypeScript + Vite client designed to run as a monday Custom Object (AppFeatureObject). `App` composes the shell and feature UI; domain types and validation live under `src/shared`; data access is behind repository interfaces consumed by service layer; React components never touch GraphQL or storage directly.
 
-The current `mockSourcingRepository` is replaceable with a monday Document DB repository or a backend API without coupling React components to GraphQL. Backend credentials and tenant-aware operations belong in `src/backend` only. Every persisted record must carry a tenant boundary derived from authenticated monday context; a client-supplied account ID must never be trusted as authorization.
+## Runtime layer (Milestone 3)
+
+`MondayRuntimeAdapter` is the single seam between browser code and the monday SDK. In the MONDAY runtime it wraps `monday-sdk-js@0.5.9`, pinning `apiVersion: '2026-07'`. In LOCAL_DEVELOPMENT and TEST modes a mock is injected; components and services are unaware of the difference.
+
+`detectRuntimeMode()` resolves `RuntimeMode.TEST` (process.env.NODE_ENV === 'test'), `RuntimeMode.MONDAY` (window.self !== window.top), or `RuntimeMode.LOCAL_DEVELOPMENT`. This eliminates any SDK call in test environments.
+
+`MondayTenantContextProvider` calls `runtime.getContext()` and extracts `context.account.id` as the canonical tenant identifier. It throws on missing or empty account ID. No path exists for a caller to supply a tenant ID directly.
+
+`RuntimeCapabilities` derives `canViewSuppliers`, `canEditAriavelSuppliers`, and `canConfigureSupplierSource` from the monday context user object. Capability checks happen in `SuppliersPage` — no capability enforcement is placed in service or repository layers.
 
 The initial repository contract is intentionally small. As RFQs mature, add use-case services and repository methods around the domain model rather than placing monday queries in components.
 
@@ -14,11 +22,11 @@ Statuses are `ACTIVE`, `PENDING`, `INACTIVE` and `BLOCKED`. Source types are `AR
 
 ## Tenant context and repository
 
-`DevelopmentTenantContextProvider` is the single mock tenant source. It is deliberately named as development-only and must later be replaced by a provider derived from verified monday authentication/context. Tenant IDs are never accepted from form values, query strings, URLs or local storage.
+`MondayTenantContextProvider` is the production tenant source. `DevelopmentTenantContextProvider` is the local-development mock. Both implement the same interface. Tenant IDs are never accepted from form values, query strings, URLs, or localStorage.
 
-`SupplierRepository` requires a tenant context for list, get, create, update, status change, source-configuration read and source-configuration write. `createInMemorySupplierRepository` filters every operation by tenant, prevents cross-tenant reads/updates, and returns defensive copies. Its reset-on-reload behavior is intentional for this milestone.
+`SupplierRepository` requires a tenant context for list, get, create, update, status change, and source-configuration operations. `MondayStorageSupplierRepository` is the M3 production implementation: it uses `MondayRuntimeAdapter.storage` (global scope) with per-supplier keys (`ariavel:supplier:<id>`), a shared index key (`ariavel:supplier-index`), and optimistic concurrency via the `previous_version` token. A lazy schema-version key (`ariavel:schema-version`) guards future migrations. Corrupt JSON in storage is silently skipped. `createInMemorySupplierRepository` remains the local/test adapter.
 
-`SupplierService` coordinates tenant resolution, validation, normalization, search/filtering, summaries, repository writes, board-provider access, mapping validation and previews. React receives the service as a dependency and never knows which storage or board adapter is active.
+`SupplierService` coordinates tenant resolution, validation, normalization, search/filtering, summaries, repository writes, board-provider access, mapping validation, previews, and board-item pagination. The `listBoardSuppliers()` method fetches up to 20 pages of `items_page(limit: 500)` results via the board provider and transforms each item through `transformMondayItemToInput`. React receives the service as a dependency and never knows which storage or board adapter is active.
 
 ## Board provider and mapping
 
@@ -26,9 +34,14 @@ Statuses are `ACTIVE`, `PENDING`, `INACTIVE` and `BLOCKED`. Source types are `AR
 
 Column compatibility, mapping validation and preview transformation live in `src/shared/mapping`. Supplier Name is the only required mapping. Optional missing mappings do not block setup; potentially incompatible column types produce warnings. A future authenticated monday adapter can translate current API responses into the same descriptors without changing service or UI contracts.
 
+## Board provider
+
+`MondayApiBoardProvider` is the M3 production board provider. `listBoards()` calls `boards(state: active, limit: 100)`. `getBoard(id)` fetches columns via a second query and five sample items. `listBoardItems(boardId, cursor?)` uses `items_page(limit: 500)` with cursor pagination; the cursor is `null` on the final page. Column values are read from `column_values[].text` (the human-readable display string, not raw JSON). `mockMondayBoardProvider` is retained for local development.
+
+`transformMondayItemToInput` normalises status aliases (Approved/Enabled → ACTIVE, Onboarding/New → PENDING, Disabled/Archived → INACTIVE, Suspended/Banned → BLOCKED), boolean columns (true/yes/1/checked → true), integer ratings (1–5 only), and emits `SourceWarning` for values that cannot be mapped cleanly. Items without a resolved name are skipped with a warning.
+
 ## Future adapters
 
-- Replace `DevelopmentTenantContextProvider` with authenticated monday account context.
-- Replace the in-memory repository with a Document DB or secured backend adapter.
-- Replace the mock board provider with least-privilege read-only board discovery.
-- Keep GraphQL, tokens, credentials and authorization enforcement outside React.
+- Replace `MondayStorageSupplierRepository` with a Document DB adapter if query complexity or record volume warrants it; no React or service changes are required.
+- Extend board discovery to support item-creation write-back once a write scope is added.
+- Keep GraphQL, tokens, credentials, and authorization enforcement outside React.

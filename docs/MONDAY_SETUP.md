@@ -32,6 +32,6 @@ Run the token-bearing initialization command manually. Never send the token thro
 
 If a version-controlled manifest would help future development, export it only after authentication using the current `mapps manifest:export` command. Inspect every exported file for secrets and credentials before adding it to Git.
 
-Milestone 2 can run with its normalized mock board provider inside monday. Real board discovery is intentionally deferred until least-privilege runtime authentication and required read scopes are configured.
+Milestone 3 uses `monday.api()` for real board discovery. The `boards:read` OAuth scope must be listed under **Permissions** in Developer Center for the app before board queries will succeed. No additional scopes are required for `monday.storage` calls; storage is always available to client-side apps.
 
 See `docs/MONDAY_APP_STATE.md` for the confirmed non-secret application inventory and deployment boundary.

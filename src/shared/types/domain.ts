@@ -35,6 +35,8 @@ export interface Supplier extends SupplierInput {
 export interface MondayColumnDescriptor { id: string; title: string; type: string; }
 export interface MondayBoardSampleItem { id: string; name: string; columnValues: Record<string, string | number | boolean | null>; }
 export interface MondayBoardDescriptor { id: string; name: string; columns: MondayColumnDescriptor[]; sampleItems: MondayBoardSampleItem[]; }
+export interface MondayItemDescriptor { id: string; name: string; columnValues: Record<string, string | null>; }
+export interface SourceWarning { itemId: string; field: string; message: string; }
 export interface SupplierFieldMapping { supplierField: SupplierFieldKey; mondayColumnId: string; }
 export interface SupplierBoardMapping { boardId: string; fieldMappings: SupplierFieldMapping[]; configuredAt: string; }
 export type SupplierSourceConfiguration = { mode: 'ARIAVEL' } | { mode: 'MONDAY_BOARD'; boardMapping: SupplierBoardMapping };

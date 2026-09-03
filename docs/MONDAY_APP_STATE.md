@@ -17,7 +17,7 @@ This file records non-secret Developer Center metadata for development safety. V
 | Build directory | `./dist` |
 | Intended development hosting | monday client-side code / CDN deployment |
 
-## Client-side CDN deployment (Milestone 2)
+## Client-side CDN deployment (Milestone 3 — pending)
 
 | Field | Value |
 | --- | --- |

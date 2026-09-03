@@ -1,6 +1,6 @@
 # Ariavel Sourcing
 
-Milestones 1 and 2 of the Ariavel Technologies monday.com Marketplace application: a polished Sourcing Hub and tenant-aware Supplier Master for procurement teams.
+Milestones 1–3 of the Ariavel Technologies monday.com Marketplace application: a polished Sourcing Hub, tenant-aware Supplier Master, and real monday runtime with persistent supplier storage.
 
 ## Prerequisites
 
@@ -24,11 +24,11 @@ npm test
 npm run build
 ```
 
-No secrets are required for local development. The current UI uses replaceable in-memory repositories and a normalized mock monday board provider. Supplier records and source configuration reset on reload; real board discovery and durable Document DB storage remain future adapters.
+No secrets are required for local development. In local mode the UI uses in-memory repositories and a mock monday board provider. In the monday runtime the app uses real monday SDK context, `monday.storage` (global scope) for durable supplier persistence, and `monday.api()` for live board discovery — all seamlessly authenticated via the monday postMessage proxy with no token management required.
 
 ## Milestone 2 — Supplier Master
 
-The **Suppliers** navigation now opens a complete supplier workspace with:
+The **Suppliers** navigation opens a complete supplier workspace with:
 
 - meaningful total, active, preferred and incomplete-profile metrics;
 - dynamic search plus status, category and country filters;
@@ -38,12 +38,21 @@ The **Suppliers** navigation now opens a complete supplier workspace with:
 - manual preferred-supplier metadata and optional 1–5 rating;
 - reusable supplier validation and normalization;
 - tenant-scoped repository/service operations and cross-tenant protection;
-- Ariavel-managed and existing-monday-board source modes;
-- normalized mock board discovery, column compatibility, required mapping validation and fictional preview data.
+- Ariavel-managed and existing-monday-board source modes with column mapping validation.
 
-The source setup is intentionally provider-driven. It does not query monday from React and does not use a personal API token as runtime authorization. A later adapter can implement authenticated read-only board discovery behind `MondayBoardProvider`.
+## Milestone 3 — Real Monday Runtime & Persistent Data Foundation
 
-Not implemented: durable storage, real board reads, supplier invitations, public supplier access, RFQ/quotation workflows, extraction, bid comparison, awards, ERP integrations, billing, Marketplace submission or production promotion.
+Milestone 3 connects the app to the live monday environment:
+
+- **Runtime detection**: `RuntimeMode.MONDAY` (iframe), `LOCAL_DEVELOPMENT` (top-level), `TEST` (process.env). Graceful local fallback uses mock providers so development workflow is unchanged.
+- **Trusted tenant identity**: account ID read exclusively from `monday.get('context')`. Never accepted from form input, URL params, localStorage, or user-supplied JSON.
+- **Real board discovery**: `monday.api()` with `boards:read` scope via `MondayApiBoardProvider`. Lists active boards, resolves column descriptors, paginates board items using `items_page(limit: 500)` cursor pagination with a 20-page guard.
+- **Durable supplier storage**: `monday.storage` (global scope) via `MondayStorageSupplierRepository`. Per-supplier keys plus an index key. Optimistic concurrency via `previous_version`. Lazy schema-version initialization. Corrupt-record resilience.
+- **Capability gating**: `RuntimeCapabilities` derived from monday context user object (`isAdmin`, `isGuest`, `isViewOnly`). Board-mode suppliers are read-only; add/edit/deactivate buttons are hidden.
+- **Loading and error states**: professional spinner during SDK initialization and board discovery; permission and initialization error states with recovery prompts.
+- **API version pinned**: `2026-07` (stable, current).
+
+Not implemented: supplier invitations, public supplier access, RFQ/quotation workflows, bid comparison, awards, ERP integrations, billing, Marketplace submission or production promotion.
 
 ## monday setup
 

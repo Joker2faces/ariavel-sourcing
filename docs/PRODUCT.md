@@ -21,6 +21,17 @@ Supplier status semantics are:
 - `INACTIVE`: retained historically but not currently used.
 - `BLOCKED`: must not be automatically selected for sourcing.
 
-Customers can select an Ariavel-managed source or conceptually connect an existing monday supplier board. The monday-board path includes normalized board selection, explicit column mapping, required Supplier Name validation, compatibility guidance and fictional mapping preview.
+Customers can select an Ariavel-managed source or connect an existing monday supplier board. The monday-board path includes board selection, explicit column mapping with required Supplier Name validation, compatibility guidance, and preview.
 
-Milestone 2 uses tenant-scoped in-memory supplier/configuration storage and a mock board provider. It does not read real monday boards, persist across reloads, invite suppliers, collect quotations, normalize bids, calculate landed cost, recommend or create awards, integrate with ERPs, monetize the app, submit it to Marketplace, or promote a production version.
+## Milestone 3 — Real Monday Runtime & Persistent Data Foundation
+
+Milestone 3 makes the app fully functional inside a real monday workspace:
+
+- Supplier records are persisted durably in `monday.storage` (global scope). Records survive page reloads and are shared across all app instances within the workspace.
+- Tenant identity comes exclusively from the authenticated monday context (`account.id`). No form input, URL parameter, or localStorage value is ever accepted as a tenant identifier.
+- Real monday boards are discovered and read via `monday.api()` with the `boards:read` OAuth scope. Board items are paginated using `items_page` cursors.
+- Role-based access: admins can configure the supplier source; view-only and guest users have progressively restricted access. Board-mode views are read-only for all users.
+- Graceful local development fallback: when running outside monday (or in tests), mock providers are substituted transparently with no code change.
+- Professional loading, error, and permission states are shown during SDK initialization and board discovery.
+
+Milestone 3 does not invite suppliers, collect quotations, normalize bids, calculate landed cost, create awards, integrate with ERPs, monetize the app, submit to Marketplace, or promote a production version.
