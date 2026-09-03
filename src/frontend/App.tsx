@@ -15,8 +15,6 @@ import { createMondayRuntimeAdapter, detectRuntimeMode, RuntimeMode } from '../b
 import type { RuntimeCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { deriveCapabilities, fullCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { createBuyerApiClient, type BuyerApiClient } from './api/buyerApiClient';
-import type { SourcingEvent, SourcingEventStatus } from '../shared/types/domain';
-import { isClosingSoon, formatDeadlineDisplay } from '../shared/utils/deadline';
 import { Icon } from './components/Icon';
 import { ErrorBoundary } from './ErrorBoundary';
 import { OnboardingFlow } from './onboarding/OnboardingFlow';
@@ -29,15 +27,6 @@ import './styles.css';
 const ONBOARDING_KEY = 'ariavel_onboarding_done';
 
 const nav = [{ label: 'Sourcing Events', icon: 'clipboard' }, { label: 'Suppliers', icon: 'users' }, { label: 'Awards', icon: 'trophy' }, { label: 'Settings', icon: 'settings' }] as const;
-
-const STATUS_LABEL: Record<SourcingEventStatus, string> = {
-  DRAFT: 'Draft',
-  READY_FOR_INVITATION: 'Ready',
-  OPEN: 'Open',
-  EVALUATING: 'Evaluating',
-  AWARDED: 'Awarded',
-  CANCELLED: 'Cancelled',
-};
 
 interface RuntimeServices {
   supplierService: SupplierService;
@@ -74,10 +63,23 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
 
     const mode = detectRuntimeMode();
 
-    if (mode !== RuntimeMode.MONDAY) {
-      // Local development / test mode has no monday session to mint a buyer JWT
-      // from, so the buyer API (invitations, quotes, comparisons, awards) is not
-      // reachable here — only supplier/event data (backed by in-memory mocks).
+    if (mode === RuntimeMode.STANDALONE_NO_CONTEXT) {
+      // A real deployed build, opened directly with no monday iframe context.
+      // There is no valid sessionToken here — never fall back to mock/demo
+      // business data just because monday context happens to be absent; that
+      // would silently show fictional suppliers/RFQs in a real deployment.
+      // App() renders the dedicated "open inside monday" state for this mode
+      // without ever reaching a data-loading path.
+      setLoading(false);
+      return;
+    }
+
+    if (mode === RuntimeMode.LOCAL_DEVELOPMENT || mode === RuntimeMode.TEST) {
+      // Only a real developer machine (npm run dev) or the test runner reaches
+      // here — mock/demo providers are appropriate. There is no monday
+      // session to mint a buyer JWT from, so the buyer API (invitations,
+      // quotes, comparisons, awards) is not reachable — only supplier/event
+      // data (backed by in-memory mocks).
       const supplierRepo = createInMemorySupplierRepository(mockSuppliers);
       const eventRepo = createInMemorySourcingEventRepository(mockSourcingEvents);
       const supplierSvc = createSupplierService(supplierRepo, developmentTenantContextProvider, mockMondayBoardProvider);
@@ -178,6 +180,10 @@ export default function App({ supplierService: injSupplier, eventService: injEve
     );
   }
 
+  if (!injSupplier && !injEvent && detectRuntimeMode() === RuntimeMode.STANDALONE_NO_CONTEXT) {
+    return <OpenInMondayState />;
+  }
+
   return (
     <ErrorBoundary>
       {showOnboarding && <OnboardingFlow onComplete={dismissOnboarding} onSkip={dismissOnboarding} />}
@@ -217,73 +223,28 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
-export function SourcingHub({ eventService }: { eventService: SourcingEventService }) {
-  const [events, setEvents] = useState<SourcingEvent[]>([]);
-  const [showWizard, setShowWizard] = useState(false);
-  const [notice, setNotice] = useState('');
-
-  useEffect(() => { void eventService.list().then(setEvents); }, [eventService]);
-
-  const counts = useMemo(() => {
-    const now = new Date();
-    return {
-      draft: events.filter(e => e.status === 'DRAFT').length,
-      ready: events.filter(e => e.status === 'READY_FOR_INVITATION').length,
-      closing: events.filter(e => e.status !== 'CANCELLED' && e.deadline && isClosingSoon(e.deadline, now)).length,
-      total: events.filter(e => e.status !== 'CANCELLED').length,
-    };
-  }, [events]);
-
-  if (showWizard) {
-    return <div className="content-wrap"><div className="notice" role="status">Use the Sourcing Events page to create RFQs.</div></div>;
-  }
-
+/**
+ * Shown when this app's own production bundle is opened directly, outside
+ * monday's iframe — e.g. someone navigates to the monday Code service URL
+ * in a normal browser tab. There is no valid sessionToken here, so this is
+ * never a "backend offline" condition (the backend usually IS running —
+ * this page is served BY it) and never a reason to fall back to mock data.
+ */
+function OpenInMondayState() {
+  const isDev = import.meta.env.DEV;
   return (
-    <div className="content-wrap">
-      <div className="page-heading">
-        <div><h1>Sourcing Events</h1><p>Keep every supplier quote aligned, comparable and ready for a confident decision.</p></div>
-        <button className="primary-button" onClick={() => setShowWizard(true)}>+ <span>Create sourcing event</span></button>
+    <div className="standalone-shell">
+      <div className="standalone-card">
+        <span className="standalone-mark" aria-hidden="true"><Icon name="grid" size={28} /></span>
+        <h1>Ariavel Sourcing</h1>
+        <p>This workspace is available inside monday.com.</p>
+        <p className="standalone-hint">Open Ariavel Sourcing from your monday workspace to continue.</p>
+        {isDev && (
+          <p className="standalone-dev-note">
+            Development note: this build has no monday iframe context, so buyer session authentication cannot run. Use <code>npm run dev</code> for mock-data local development instead.
+          </p>
+        )}
       </div>
-      {notice && <div className="notice" role="status">{notice}</div>}
-      <section className="summary-grid" aria-label="Sourcing summary">
-        <SummaryCard label="Draft Events" value={counts.draft} tone="blue" icon="clipboard" />
-        <SummaryCard label="Ready for Invitation" value={counts.ready} tone="green" icon="check" />
-        <SummaryCard label="Closing Soon" value={counts.closing} tone="orange" icon="clock" />
-        <SummaryCard label="Total Active" value={counts.total} tone="blue" icon="calendar" />
-      </section>
-      <section className="events-panel">
-        <div className="panel-header"><h2>Recent sourcing events</h2></div>
-        <div className="table-wrap">
-          <table><thead><tr><th>Reference</th><th>Event</th><th>Status</th><th>Deadline</th><th>Lines</th><th>Suppliers</th><th aria-label="Actions" /></tr></thead>
-            <tbody>{events.slice(0, 10).map(event => (
-              <tr key={event.id}>
-                <td className="rfq-ref">{event.reference}</td>
-                <td className="event-name">{event.title}</td>
-                <td><HubStatus status={event.status} /></td>
-                <td>{event.deadline ? formatDeadlineDisplay(event.deadline) : '—'}</td>
-                <td>{event.lines.length}</td>
-                <td>{event.supplierSelections.length}</td>
-                <td><button className="open-button" onClick={() => setNotice(`Opening ${event.reference}`)}>Open</button></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-        <div className="panel-footer"><span>1–{Math.min(10, events.length)} of {events.length}</span></div>
-      </section>
     </div>
   );
-}
-
-function SummaryCard({ label, value, tone, icon }: { label: string; value: number; tone: string; icon: 'clipboard' | 'clock' | 'calendar' | 'check' }) {
-  return <div className="summary-card"><span>{label}</span><strong className={tone}>{value}</strong><span className={`summary-icon ${tone}`}><Icon name={icon} size={23} /></span></div>;
-}
-
-function HubStatus({ status }: { status: SourcingEventStatus }) {
-  const cls = status === 'DRAFT' ? 'awaiting_quotes'
-    : status === 'READY_FOR_INVITATION' ? 'active'
-    : status === 'OPEN' ? 'active'
-    : status === 'EVALUATING' ? 'closing_soon'
-    : status === 'AWARDED' ? 'awarded'
-    : 'closing_soon';
-  return <span className={`status ${cls}`}><span className="status-dot">•</span>{STATUS_LABEL[status]}</span>;
 }

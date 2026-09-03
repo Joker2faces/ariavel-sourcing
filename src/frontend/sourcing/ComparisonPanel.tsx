@@ -12,7 +12,7 @@ interface Props {
 
 interface FxRow { currency: string; rate: string }
 
-export function ComparisonPanel({ event, apiClient, serverAvailable }: Props) {
+export function ComparisonPanel({ event, apiClient }: Props) {
   const [snapshot, setSnapshot] = useState<ComparisonSnapshot | null>(null);
   const [history, setHistory] = useState<ComparisonSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,10 +62,13 @@ export function ComparisonPanel({ event, apiClient, serverAvailable }: Props) {
   }
 
   if (!apiClient) {
+    // Only reachable with no monday session (local dev without monday
+    // context) — a real deployed build with no context never gets here at
+    // all (see App.tsx). Never say "backend offline" — it isn't.
     return (
       <div className="empty-state compact">
-        <h2>Not connected</h2>
-        <p>{serverAvailable ? 'Sign in through monday to load bid comparisons.' : 'The backend is offline — bid comparison is unavailable right now.'}</p>
+        <h2>Sign in through monday to continue</h2>
+        <p>Bid comparison needs your monday session to authenticate as a buyer.</p>
       </div>
     );
   }

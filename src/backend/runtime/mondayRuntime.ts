@@ -7,6 +7,16 @@ export enum RuntimeMode {
   MONDAY = 'MONDAY',
   LOCAL_DEVELOPMENT = 'LOCAL_DEVELOPMENT',
   TEST = 'TEST',
+  /**
+   * A real production build (this app's own compiled bundle, not `npm run
+   * dev`), opened directly with no monday iframe context — e.g. someone
+   * pasting the monday Code service URL into a browser tab. There is no
+   * valid sessionToken here. Must NEVER be treated the same as
+   * LOCAL_DEVELOPMENT: mock/demo data is only appropriate on a developer's
+   * own machine, not on a real deployment just because it happens to be
+   * opened outside monday's iframe.
+   */
+  STANDALONE_NO_CONTEXT = 'STANDALONE_NO_CONTEXT',
 }
 
 export function detectRuntimeMode(): RuntimeMode {
@@ -16,7 +26,14 @@ export function detectRuntimeMode(): RuntimeMode {
   if (typeof window !== 'undefined' && window.self !== window.top) {
     return RuntimeMode.MONDAY;
   }
-  return RuntimeMode.LOCAL_DEVELOPMENT;
+  // import.meta.env.DEV is true only under Vite's dev server (`npm run
+  // dev`) — false in any built bundle, including this one served in
+  // production. That is the correct signal for "am I actually on a
+  // developer's machine", not merely "is there no monday iframe around me".
+  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+    return RuntimeMode.LOCAL_DEVELOPMENT;
+  }
+  return RuntimeMode.STANDALONE_NO_CONTEXT;
 }
 
 export interface StorageGetResult {

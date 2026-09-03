@@ -64,7 +64,7 @@ function mockClient(overrides: Partial<BuyerApiClient> = {}): BuyerApiClient {
 describe('AwardWorkspacePage', () => {
   it('shows a not-connected message with no apiClient', () => {
     render(<AwardWorkspacePage eventService={mockEventService()} apiClient={null} serverAvailable={false} />);
-    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByText('Sign in through monday to continue')).toBeInTheDocument();
   });
 
   it('prompts to choose an event before showing scenarios', async () => {

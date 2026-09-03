@@ -16,7 +16,7 @@ function fmt(n: number | undefined, decimals = 2): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-export function AwardWorkspacePage({ eventService, apiClient, serverAvailable }: Props) {
+export function AwardWorkspacePage({ eventService, apiClient }: Props) {
   const [events, setEvents] = useState<SourcingEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [scenarios, setScenarios] = useState<AwardScenario[]>([]);
@@ -119,12 +119,17 @@ export function AwardWorkspacePage({ eventService, apiClient, serverAvailable }:
   }
 
   if (!apiClient) {
+    // apiClient is only ever null when there is no monday session to derive a
+    // buyer JWT from (local development without monday context) — a real
+    // deployed build with no monday context never reaches this page at all
+    // (see App.tsx's STANDALONE_NO_CONTEXT handling). This is never a
+    // "backend offline" condition, so it must never say that.
     return (
       <div className="content-wrap">
         <div className="page-heading"><div><h1>Awards</h1></div></div>
         <div className="empty-state">
-          <h2>Not connected</h2>
-          <p>{serverAvailable ? 'Sign in through monday to use the Award Workspace.' : 'The backend is offline — the Award Workspace is unavailable right now.'}</p>
+          <h2>Sign in through monday to continue</h2>
+          <p>The Award Workspace needs your monday session to authenticate as a buyer.</p>
         </div>
       </div>
     );

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { detectRuntimeMode, RuntimeMode } from '../src/backend/runtime/mondayRuntime';
 import { deriveCapabilities, fullCapabilities } from '../src/backend/runtime/runtimeCapabilities';
 import { createMondayTenantContextProvider } from '../src/backend/tenancy/mondayTenantContextProvider';
@@ -48,6 +48,49 @@ function makeMockRuntime(contextOverrides: Partial<AppFeatureObjectContext> = {}
 describe('detectRuntimeMode', () => {
   it('returns TEST in test environment', () => {
     expect(detectRuntimeMode()).toBe(RuntimeMode.TEST);
+  });
+
+  describe('outside the test runner', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
+    beforeEach(() => {
+      // NODE_ENV === 'test' short-circuits every other check — remove it so
+      // the iframe/DEV-flag branches below are actually exercised.
+      process.env.NODE_ENV = 'production';
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalNodeEnv;
+      vi.unstubAllEnvs();
+    });
+
+    it('returns MONDAY when framed (window.self !== window.top), regardless of DEV flag', () => {
+      vi.stubEnv('DEV', true);
+      const originalTop = window.top;
+      Object.defineProperty(window, 'top', { value: {}, configurable: true });
+      expect(detectRuntimeMode()).toBe(RuntimeMode.MONDAY);
+      Object.defineProperty(window, 'top', { value: originalTop, configurable: true });
+    });
+
+    it('returns LOCAL_DEVELOPMENT when not framed and running under a dev build (import.meta.env.DEV)', () => {
+      vi.stubEnv('DEV', true);
+      expect(detectRuntimeMode()).toBe(RuntimeMode.LOCAL_DEVELOPMENT);
+    });
+
+    it('returns STANDALONE_NO_CONTEXT when not framed and running a production build (import.meta.env.DEV is false)', () => {
+      vi.stubEnv('DEV', false);
+      expect(detectRuntimeMode()).toBe(RuntimeMode.STANDALONE_NO_CONTEXT);
+    });
+
+    it('never returns LOCAL_DEVELOPMENT for a production build just because monday context is absent', () => {
+      // This is the exact defect this test guards against: a real deployed
+      // build opened directly must not be treated as "local dev" (which
+      // would silently permit mock/demo business data in production).
+      vi.stubEnv('DEV', false);
+      const mode = detectRuntimeMode();
+      expect(mode).not.toBe(RuntimeMode.LOCAL_DEVELOPMENT);
+      expect(mode).toBe(RuntimeMode.STANDALONE_NO_CONTEXT);
+    });
   });
 });
 

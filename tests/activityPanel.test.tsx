@@ -44,7 +44,7 @@ function mockClient(overrides: Partial<BuyerApiClient> = {}): BuyerApiClient {
 describe('ActivityPanel', () => {
   it('shows a not-connected message with no apiClient', () => {
     render(<ActivityPanel event={event} apiClient={null} serverAvailable={false} />);
-    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByText('Sign in through monday to continue')).toBeInTheDocument();
   });
 
   it('lists activity for the event', async () => {

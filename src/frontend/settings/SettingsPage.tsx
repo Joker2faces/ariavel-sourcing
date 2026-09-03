@@ -164,7 +164,14 @@ function OrganizationSection({
 
       <SettingsCard title="Backend Connection">
         <SettingsRow label="Server URL" value={<code className="settings-code">{serverBaseUrl || '(same origin as this app)'}</code>} />
-        <SettingsRow label="Connection status" value={<StatusBadge ok={serverAvailable} trueLabel="Connected" falseLabel="Offline" />} />
+        <SettingsRow
+          label="Connection status"
+          value={
+            readOnly
+              ? <span className="settings-badge badge-neutral">Sign in through monday to connect</span>
+              : <StatusBadge ok={serverAvailable} trueLabel="Connected" falseLabel="Backend unavailable" />
+          }
+        />
       </SettingsCard>
 
       <SettingsCard title="Your Permissions">
@@ -177,7 +184,14 @@ function OrganizationSection({
         <SettingsRow label="Application" value="Ariavel Sourcing" />
         <SettingsRow label="Version" value="1.0.0-rc" />
         <SettingsRow label="Platform" value="monday.com Custom Object" />
-        <SettingsRow label="Support" value={<a href="mailto:support@ariavel.com" className="settings-link">support@ariavel.com</a>} />
+        <SettingsRow
+          label="Support"
+          value={
+            settings.organization.supportEmail
+              ? <a href={`mailto:${settings.organization.supportEmail}`} className="settings-link">{settings.organization.supportEmail}</a>
+              : <span className="settings-row-note">Not configured — set a support email above</span>
+          }
+        />
       </SettingsCard>
     </div>
   );
@@ -420,16 +434,24 @@ function DataPrivacySection({ apiClient }: { apiClient: BuyerApiClient | null })
         <SettingsRow label="Database" value="monday.com managed MongoDB (monday Code)" />
         <SettingsRow label="File storage" value="monday Object Storage" />
         <SettingsRow label="Data residency" value="monday.com platform region" />
-        <SettingsRow label="Encryption at rest" value={<StatusBadge ok={true} trueLabel="AES-256 (platform)" />} />
-        <SettingsRow label="Encryption in transit" value={<StatusBadge ok={true} trueLabel="TLS 1.2+" />} />
+        <SettingsRow
+          label="Encryption at rest"
+          value={<StatusBadge ok={true} trueLabel="AES-256" />}
+          note="Per monday.com's published platform security documentation — Ariavel does not independently manage or verify the underlying infrastructure"
+        />
+        <SettingsRow
+          label="Encryption in transit"
+          value={<StatusBadge ok={true} trueLabel="TLS 1.2+" />}
+          note="Per monday.com's published platform security documentation"
+        />
       </SettingsCard>
 
       <SettingsCard title="Data Retention">
-        <SettingsRow label="Sourcing events" value="Retained indefinitely (manual delete)" />
-        <SettingsRow label="Supplier quotes" value="Retained indefinitely (audit trail)" />
-        <SettingsRow label="Award scenarios" value="Retained indefinitely (finalized records)" />
-        <SettingsRow label="File attachments" value="Retained until manually deleted" />
-        <SettingsRow label="Audit log" value="Retained indefinitely, including after a tenant data deletion (accountability record)" />
+        <SettingsRow label="Sourcing events" value="Until manually deleted, or automatically on app uninstall" />
+        <SettingsRow label="Supplier quotes" value="Until manually deleted, or automatically on app uninstall" />
+        <SettingsRow label="Award scenarios" value="Until manually deleted, or automatically on app uninstall" />
+        <SettingsRow label="File attachments" value="Until manually deleted, or automatically on app uninstall" />
+        <SettingsRow label="Audit log" value="Retained indefinitely — including after a tenant data deletion, as the accountability record that the deletion happened" />
       </SettingsCard>
 
       <SettingsCard title="Supplier Portal Privacy">
@@ -460,10 +482,14 @@ function DataPrivacySection({ apiClient }: { apiClient: BuyerApiClient | null })
       </SettingsCard>
 
       <SettingsCard title="GDPR / Compliance">
-        <SettingsRow label="Personal data processed" value="monday.com user IDs, supplier contact names" />
-        <SettingsRow label="Data processor" value="monday.com Ltd. (platform DPA applies)" />
+        <SettingsRow label="Personal data processed" value="monday.com user IDs, supplier contact names and emails" />
+        <SettingsRow
+          label="Data processing relationship"
+          value="See your organization's Data Processing Agreement with monday.com"
+          note="Specific legal entity, jurisdiction, and DPA terms are a legal/contractual matter, not something this settings page can assert"
+        />
         <SettingsRow label="Audit log export" value="CSV export available from the event Activity tab" />
-        <SettingsRow label="Uninstall / deauthorization" value="Not yet automated — see docs/PRIVACY_DATA_MAP.md" />
+        <SettingsRow label="Uninstall / deauthorization" value="Automated — Ariavel-owned tenant data is deleted when the app is uninstalled" />
       </SettingsCard>
     </div>
   );
@@ -499,7 +525,7 @@ function BillingSection() {
       </SettingsCard>
 
       <SettingsCard title="Monetization">
-        <p className="settings-helper">Billing and plan management will be available after marketplace submission. Contact <a href="mailto:sales@ariavel.com" className="settings-link">sales@ariavel.com</a> for enterprise pricing.</p>
+        <p className="settings-helper">Billing and plan management will be available after Marketplace submission. Enterprise pricing contact details will be published here once finalized — this is a Development Preview.</p>
       </SettingsCard>
     </div>
   );

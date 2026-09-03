@@ -111,6 +111,14 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 .runtime-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 100vh; flex: 1; text-align: center; padding: 40px; }
 .runtime-error h2 { margin: 0; color: #a31e2a; }.runtime-error p { margin: 0; color: #667286; max-width: 400px; }
+.standalone-shell { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--color-surface-secondary); padding: 24px; }
+.standalone-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-md); padding: 48px 40px; max-width: 440px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.standalone-mark { color: var(--color-brand-blue); background: var(--color-brand-blue-light); width: 56px; height: 56px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.standalone-card h1 { font-size: var(--font-size-2xl); color: var(--color-text-primary); margin: 0 0 4px; }
+.standalone-card p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-base); line-height: 1.5; }
+.standalone-hint { font-weight: var(--font-weight-semibold); color: var(--color-text-primary) !important; }
+.standalone-dev-note { margin-top: 16px; padding: 12px 14px; background: var(--color-surface-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: var(--font-size-sm); text-align: left; }
+.standalone-dev-note code { background: var(--color-surface-tertiary); padding: 1px 5px; border-radius: 3px; }
 .board-mode-banner { background: #f4f8ff; border: 1px solid #c6d8f9; border-radius: 7px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px; color: #1a3b6e; }
 .board-mode-banner strong { color: #132f5a; }.board-warning-count { color: #a75d05; font-weight: 600; margin-left: 6px; }
 .supplier-skeleton { background: #fff; border: 1px solid #dde3ea; border-radius: 8px; padding: 20px 24px; display: grid; gap: 14px; }
@@ -476,8 +484,8 @@ th.sticky-col { z-index: 3; }
 .onboarding-next { min-width: 120px; }
 
 /* ── M9 — Settings Page (full 6-section layout) ────────────────────────── */
-.settings-page { padding: 48px 40px 40px; max-width: 960px; margin: 0 auto; }
-.settings-layout { display: grid; grid-template-columns: 200px 1fr; gap: 32px; margin-top: 28px; }
+.settings-page { padding: 48px 40px 40px; max-width: 1200px; margin: 0 auto; }
+.settings-layout { display: grid; grid-template-columns: 200px minmax(0, 900px); gap: 32px; margin-top: 28px; }
 .settings-nav { display: flex; flex-direction: column; gap: 2px; }
 .settings-nav-item { border: 0; background: transparent; text-align: left; padding: 9px 14px; border-radius: 7px; font-size: 14px; color: #536073; font-weight: 500; cursor: pointer; }
 .settings-nav-item:hover { background: #f0f3f7; color: #1c2638; }
@@ -535,4 +543,90 @@ th.sticky-col { z-index: 3; }
   .onboarding-content { padding: 20px 20px 16px; }
   .onboarding-footer { padding: 14px 20px; }
   .error-boundary-card { padding: 24px 20px; }
+}
+
+/* ── Dark mode: card/panel surfaces & text (M9+ corrective pass) ──────────
+   The rules above hardcode literal hex values throughout instead of
+   consuming the --color-* tokens, so @media (prefers-color-scheme: dark)
+   above (which only redefines the tokens themselves) never reached most
+   of the app — verified with real screenshots (Playwright), not just by
+   reading source. Rather than rewrite ~300 individual declarations in
+   place (high risk of a light-mode regression with no way to diff every
+   line), this block adds targeted, !important dark-mode-only overrides
+   for every card/panel/table surface and heading/body/link text class
+   found by inspecting actual computed styles on the rendered app. Some
+   selectors here (e.g. ".rfq-table th") exist only to out-rank a more
+   specific light-mode rule of the same name — !important resolves the
+   remaining specificity ties safely, scoped only to this media query. */
+@media (prefers-color-scheme: dark) {
+  h1, h2, h3, .event-name, .settings-card-title, .mobile-brand, .onboarding-title,
+  .detail-supplier-item strong, .rfq-ref, td, dd, .settings-value,
+  .award-summary-tile strong, .activity-action, .supplier-card-head strong,
+  .supplier-link, .summary-card > span:first-child, .eval-supplier-name,
+  .bid-desc, .brand {
+    color: var(--color-text-primary) !important;
+  }
+
+  .page-heading p, th, .panel-footer, .responsive-note, .settings-row-note,
+  .result-count, .per-page, .filter-button, dt, .supplier-card-head small,
+  .activity-time, .activity-actor, .settings-helper, small,
+  .rfq-table th, .rfq-detail-table th, .bid-matrix-table th, .eval-scores-table th,
+  .brand-mark {
+    color: var(--color-text-secondary) !important;
+  }
+
+  .summary-card, .events-panel, .rfq-panel, .supplier-panel, .settings-card,
+  .award-summary-tile, .activity-item, .inv-row, .inv-pending-row, .drawer,
+  .onboarding-card, .error-boundary-card, .wizard-body, .wizard-footer,
+  .rfq-card, .supplier-card, .per-page, .filter-button, .secondary-button,
+  .settings-input, .settings-select, .mobile-navigation, .bid-line-summary,
+  .bid-line-summary-card, .eval-criteria-legend, .sel-supplier-row,
+  .review-warnings, .review-validation-errors, .error-banner, .pagination button,
+  .award-line-row, .settings-nav-item, table, .detail-tab,
+  input, select, textarea, .sidebar, .topbar,
+  .rfq-controls, .supplier-controls, .mapping-preview, .mapping-table,
+  .fx-rate-form, .bid-fx-indicator, .bid-cell-detail, .bid-matrix-scroll,
+  .board-mode-banner, .line-item-row, .source-note, .detail-hero, .detail-section,
+  .eval-scores-table-wrap, .bid-line-summary-card {
+    background: var(--color-surface) !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text-primary) !important;
+  }
+
+  th, .rfq-table th, .rfq-detail-table th, .bid-matrix-table th, .eval-scores-table th {
+    background: var(--color-surface-secondary) !important;
+  }
+
+  .settings-card-title, .panel-header, .drawer-header {
+    background: var(--color-surface-secondary) !important;
+    border-color: var(--color-border) !important;
+  }
+
+  .empty-state {
+    background: var(--color-surface) !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text-secondary) !important;
+  }
+
+  .drawer-actions, .activity-item, .award-allocation-list li {
+    background: var(--color-surface) !important;
+  }
+
+  .settings-nav-item.active, .nav-item.selected, .nav-item:hover {
+    background: var(--color-brand-blue-light) !important;
+  }
+
+  .supplier-summary, .supplier-table, .supplier-card {
+    background: var(--color-surface) !important;
+    border-color: var(--color-border) !important;
+  }
+
+  .supplier-metric { border-color: var(--color-border) !important; }
+  .supplier-metric span, .result-count, .supplier-table td:first-child small { color: var(--color-text-secondary) !important; }
+  .supplier-metric strong, .supplier-table strong { color: var(--color-text-primary) !important; }
+  .result-count { background: var(--color-surface-secondary) !important; }
+
+  .settings-row-label > span:first-child, .summary-card > span:first-child {
+    color: var(--color-text-primary) !important;
+  }
 }

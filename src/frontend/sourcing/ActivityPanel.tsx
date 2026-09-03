@@ -27,7 +27,7 @@ function actorLabel(e: AuditEvent): string {
   return e.actorType === 'supplier' ? `Supplier ${e.actorId}` : `Buyer user ${e.actorId}`;
 }
 
-export function ActivityPanel({ event, apiClient, serverAvailable }: Props) {
+export function ActivityPanel({ event, apiClient }: Props) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -64,10 +64,13 @@ export function ActivityPanel({ event, apiClient, serverAvailable }: Props) {
   }
 
   if (!apiClient) {
+    // Only reachable with no monday session (local dev without monday
+    // context) — a real deployed build with no context never gets here at
+    // all (see App.tsx). Never say "backend offline" — it isn't.
     return (
       <div className="empty-state compact">
-        <h2>Not connected</h2>
-        <p>{serverAvailable ? 'Sign in through monday to load the activity log.' : 'The backend is offline — activity history is unavailable right now.'}</p>
+        <h2>Sign in through monday to continue</h2>
+        <p>Activity history needs your monday session to authenticate as a buyer.</p>
       </div>
     );
   }

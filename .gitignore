@@ -11,3 +11,4 @@ coverage/
 *.local
 code.tar.gz
 security-scan-*.json
+_*.mjs

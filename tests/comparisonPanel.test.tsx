@@ -71,6 +71,6 @@ describe('ComparisonPanel', () => {
 
   it('shows an offline message when there is no apiClient', () => {
     render(<ComparisonPanel event={event} apiClient={null} serverAvailable={false} />);
-    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByText('Sign in through monday to continue')).toBeInTheDocument();
   });
 });

@@ -140,11 +140,26 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
     return `mailto:${encodeURIComponent(inv.supplierEmailSnapshot)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
-  if (!serverAvailable) {
+  if (!apiClient) {
+    // Only reachable with no monday session (local dev without monday
+    // context) — a real deployed build with no context never gets here at
+    // all (see App.tsx). Never say "server not available" — the server is
+    // fine, there's just no buyer session to authenticate with here.
     return (
       <div className="empty-state compact">
-        <h2>Server not available</h2>
-        <p>Invitation management requires the Ariavel server backend. Contact your administrator to enable it.</p>
+        <h2>Sign in through monday to continue</h2>
+        <p>Invitation management needs your monday session to authenticate as a buyer.</p>
+      </div>
+    );
+  }
+
+  if (!serverAvailable) {
+    // apiClient exists (we're inside monday with a session) but the health
+    // check failed — this IS a genuine backend-unavailable condition.
+    return (
+      <div className="empty-state compact">
+        <h2>Backend unavailable</h2>
+        <p>The Ariavel server isn't responding right now. Try reloading in a moment.</p>
       </div>
     );
   }
