@@ -34,6 +34,13 @@ export interface AwardService {
     now: string,
   ): Promise<AwardScenario>;
 
+  /**
+   * Awards (a portion of) a line to a supplier. Calling this again for the same
+   * line with a *different* supplier does not replace the existing allocation —
+   * it adds a second allocation, splitting the line, as long as the combined
+   * quantity across all suppliers on that line does not exceed requestedQuantity.
+   * Calling it again for the *same* supplier updates that supplier's quantity.
+   */
   awardLine(
     tenantId: string,
     scenarioId: string,
@@ -46,6 +53,9 @@ export interface AwardService {
   ): Promise<AwardScenario>;
 
   clearLine(tenantId: string, scenarioId: string, lineId: string, userId: string, now: string): Promise<AwardScenario>;
+
+  /** Removes just one supplier's allocation from a (possibly split) line. */
+  removeLineAllocation(tenantId: string, scenarioId: string, lineId: string, supplierId: string, userId: string, now: string): Promise<AwardScenario>;
 
   finalizeScenario(tenantId: string, scenarioId: string, userId: string, now: string): Promise<AwardScenario>;
 
@@ -105,6 +115,14 @@ function calcSummary(lines: AwardLine[]): AwardSummary {
     noAwardLineCount: lines.filter(l => l.status === 'NO_AWARD').length,
     supplierConcentration,
   };
+}
+
+function deriveAwardType(lines: AwardLine[]): 'WHOLE' | 'LINE' | 'SPLIT' {
+  if (lines.some(l => l.allocations.length > 1)) return 'SPLIT';
+  const awardedLines = lines.filter(l => l.status === 'AWARDED');
+  const suppliers = new Set(awardedLines.flatMap(l => l.allocations.map(a => a.supplierId)));
+  if (awardedLines.length > 0 && awardedLines.length === lines.length && suppliers.size === 1) return 'WHOLE';
+  return 'LINE';
 }
 
 // ── Recommendation engine (deterministic: lowest landed cost per line) ────────
@@ -193,7 +211,7 @@ export function createAwardService(
         id: genId(), tenantId, eventId,
         comparisonSnapshotId: input.comparisonSnapshotId,
         name: input.name,
-        awardType: 'LINE',
+        awardType: deriveAwardType(lines),
         lines,
         summary: calcSummary(lines),
         isFinalized: false,
@@ -216,7 +234,7 @@ export function createAwardService(
         id: genId(), tenantId, eventId,
         comparisonSnapshotId: input.comparisonSnapshotId,
         name: input.name,
-        awardType: 'LINE',
+        awardType: deriveAwardType(lines),
         lines,
         summary: calcSummary(lines),
         isFinalized: false,
@@ -247,6 +265,14 @@ export function createAwardService(
       if (quantity <= 0 || quantity > awardLine.requestedQuantity) {
         throw new AwardValidationError(`Quantity must be between 1 and ${awardLine.requestedQuantity}`);
       }
+      const othersQuantity = awardLine.allocations
+        .filter(a => a.supplierId !== supplierId)
+        .reduce((s, a) => s + a.quantity, 0);
+      if (othersQuantity + quantity > awardLine.requestedQuantity) {
+        throw new AwardValidationError(
+          `Total allocated quantity (${othersQuantity + quantity}) would exceed the requested quantity (${awardLine.requestedQuantity})`
+        );
+      }
 
       const isOverride = (() => {
         const bp = snapshot.lineBestPrices.find(b => b.lineId === lineId);
@@ -267,16 +293,18 @@ export function createAwardService(
         extendedLandedCost: nqLine.landedUnitCost * quantity,
       };
 
-      awardLine.allocations = [allocation]; // single-supplier allocation; split comes later
+      // Upsert this supplier's allocation on the line — a *different* supplier
+      // already allocated on the same line is left alone, splitting the line.
+      awardLine.allocations = [...awardLine.allocations.filter(a => a.supplierId !== supplierId), allocation];
       awardLine.status = 'AWARDED';
-      awardLine.isManualOverride = isOverride;
-      if (isOverride) awardLine.overrideReason = overrideReason;
+      if (isOverride) { awardLine.isManualOverride = true; awardLine.overrideReason = overrideReason; }
 
       scenario.summary = calcSummary(scenario.lines);
+      scenario.awardType = deriveAwardType(scenario.lines);
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
       await auditRepo.log(tenantId, 'AWARD_LINE_SET', scenario.id, 'award_scenario', 'buyer', userId, now, {
-        lineId, supplierId, quantity, isOverride, ...(overrideReason ? { overrideReason } : {}),
+        lineId, supplierId, quantity, isOverride, split: awardLine.allocations.length > 1, ...(overrideReason ? { overrideReason } : {}),
       });
       return scenario;
     },
@@ -294,9 +322,32 @@ export function createAwardService(
       awardLine.overrideReason = undefined;
 
       scenario.summary = calcSummary(scenario.lines);
+      scenario.awardType = deriveAwardType(scenario.lines);
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
       await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId });
+      return scenario;
+    },
+
+    async removeLineAllocation(tenantId, scenarioId, lineId, supplierId, userId, now) {
+      const scenario = await getScenarioOrThrow(tenantId, scenarioId);
+      assertNotFinalized(scenario);
+
+      const awardLine = scenario.lines.find(l => l.lineId === lineId);
+      if (!awardLine) throw new AwardValidationError(`Line ${lineId} not found in scenario`);
+
+      awardLine.allocations = awardLine.allocations.filter(a => a.supplierId !== supplierId);
+      if (awardLine.allocations.length === 0) {
+        awardLine.status = 'PENDING';
+        awardLine.isManualOverride = false;
+        awardLine.overrideReason = undefined;
+      }
+
+      scenario.summary = calcSummary(scenario.lines);
+      scenario.awardType = deriveAwardType(scenario.lines);
+      scenario.updatedAt = now;
+      await awardRepo.save(scenario);
+      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId, supplierId });
       return scenario;
     },
 

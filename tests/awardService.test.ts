@@ -319,4 +319,73 @@ describe('AwardService', () => {
       expect(alphaConcentration.share + betaConcentration.share).toBeCloseTo(100, 0);
     });
   });
+
+  describe('split award', () => {
+    async function buildEmptyScenario() {
+      const { awardService } = buildService();
+      const scenario = await awardService.createEmptyScenario(
+        TENANT, EVENT_ID, EVENT_LINES, { name: 'Split test', comparisonSnapshotId: SNAP_ID }, USER_ID, NOW,
+      );
+      return { awardService, scenario };
+    }
+
+    it('splits a line across two suppliers when the combined quantity fits', async () => {
+      const { awardService, scenario } = await buildEmptyScenario();
+      const afterA = await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 600, undefined, USER_ID, NOW);
+      const afterBoth = await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-A', 400, 'balance capacity', USER_ID, NOW);
+
+      const line1 = afterBoth.lines.find(l => l.lineId === 'line-1')!;
+      expect(line1.allocations).toHaveLength(2);
+      expect(line1.status).toBe('AWARDED');
+      expect(afterBoth.awardType).toBe('SPLIT');
+      expect(afterA.lines.find(l => l.lineId === 'line-1')!.allocations).toHaveLength(1);
+
+      const totalQty = line1.allocations.reduce((s, a) => s + a.quantity, 0);
+      expect(totalQty).toBe(1000);
+    });
+
+    it('rejects a split where the combined quantity exceeds the requested quantity', async () => {
+      const { awardService, scenario } = await buildEmptyScenario();
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 700, undefined, USER_ID, NOW);
+      await expect(
+        awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-A', 400, 'over capacity', USER_ID, NOW),
+      ).rejects.toThrow(/exceed/);
+    });
+
+    it('updates the same supplier\'s allocation in place rather than adding a duplicate', async () => {
+      const { awardService, scenario } = await buildEmptyScenario();
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 500, undefined, USER_ID, NOW);
+      const updated = await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 800, undefined, USER_ID, NOW);
+      const line1 = updated.lines.find(l => l.lineId === 'line-1')!;
+      expect(line1.allocations).toHaveLength(1);
+      expect(line1.allocations[0].quantity).toBe(800);
+    });
+
+    it('removeLineAllocation removes just one supplier and reverts to PENDING once empty', async () => {
+      const { awardService, scenario } = await buildEmptyScenario();
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 600, undefined, USER_ID, NOW);
+      const afterSplit = await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-A', 400, 'split', USER_ID, NOW);
+      expect(afterSplit.lines.find(l => l.lineId === 'line-1')!.allocations).toHaveLength(2);
+
+      const afterRemoveOne = await awardService.removeLineAllocation(TENANT, scenario.id, 'line-1', 'sup-A', USER_ID, NOW);
+      const line1AfterOne = afterRemoveOne.lines.find(l => l.lineId === 'line-1')!;
+      expect(line1AfterOne.allocations).toHaveLength(1);
+      expect(line1AfterOne.status).toBe('AWARDED');
+
+      const afterRemoveAll = await awardService.removeLineAllocation(TENANT, scenario.id, 'line-1', 'sup-B', USER_ID, NOW);
+      const line1Empty = afterRemoveAll.lines.find(l => l.lineId === 'line-1')!;
+      expect(line1Empty.allocations).toHaveLength(0);
+      expect(line1Empty.status).toBe('PENDING');
+      expect(afterRemoveAll.awardType).not.toBe('SPLIT');
+    });
+
+    it('sums extendedLandedCost across both suppliers in the split line', async () => {
+      const { awardService, scenario } = await buildEmptyScenario();
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 600, undefined, USER_ID, NOW); // 9.20 * 600 = 5520
+      const afterBoth = await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-A', 400, 'split', USER_ID, NOW); // 9.80 * 400 = 3920
+      const line1 = afterBoth.lines.find(l => l.lineId === 'line-1')!;
+      const lineTotal = line1.allocations.reduce((s, a) => s + a.extendedLandedCost, 0);
+      expect(lineTotal).toBeCloseTo(5520 + 3920, 2);
+    });
+  });
 });

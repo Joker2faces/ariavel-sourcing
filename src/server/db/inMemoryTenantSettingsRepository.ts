@@ -7,19 +7,19 @@ export function createInMemoryTenantSettingsRepository(): TenantSettingsReposito
   return {
     async get(tenantId) {
       const doc = store.get(tenantId);
-      return doc ? { ...doc } : null;
+      return doc ? structuredClone(doc) : null;
     },
 
     async setWithVersion(settings, expectedVersion) {
       const existing = store.get(settings.tenantId);
       if (expectedVersion === 0) {
         if (existing) return null;
-        store.set(settings.tenantId, { ...settings });
-        return { ...settings };
+        store.set(settings.tenantId, structuredClone(settings));
+        return structuredClone(settings);
       }
       if (!existing || existing.version !== expectedVersion) return null;
-      store.set(settings.tenantId, { ...settings });
-      return { ...settings };
+      store.set(settings.tenantId, structuredClone(settings));
+      return structuredClone(settings);
     },
   };
 }

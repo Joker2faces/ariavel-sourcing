@@ -292,6 +292,18 @@ export function createBuyerRouter(
     } catch (err) { awardErrorResponse(res, err); }
   });
 
+  router.delete('/award-scenarios/:id/lines/:lineId/allocations/:supplierId', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const scenario = await awardService.removeLineAllocation(
+        tenantId, param(req, 'id'), param(req, 'lineId'), param(req, 'supplierId'), userId, new Date().toISOString(),
+      );
+      res.json({ scenario });
+    } catch (err) { awardErrorResponse(res, err); }
+  });
+
   router.post('/award-scenarios/:id/finalize', async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {

@@ -6,27 +6,27 @@ export function createInMemoryComparisonRepository(): ComparisonRepository {
 
   return {
     async save(snapshot) {
-      store.set(snapshot.id, { ...snapshot });
-      return { ...snapshot };
+      store.set(snapshot.id, structuredClone(snapshot));
+      return structuredClone(snapshot);
     },
 
     async getById(tenantId, id) {
       const doc = store.get(id);
-      return doc?.tenantId === tenantId ? { ...doc } : null;
+      return doc?.tenantId === tenantId ? structuredClone(doc) : null;
     },
 
     async getLatest(tenantId, eventId) {
       const matches = [...store.values()]
         .filter(s => s.tenantId === tenantId && s.eventId === eventId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      return matches[0] ? { ...matches[0] } : null;
+      return matches[0] ? structuredClone(matches[0]) : null;
     },
 
     async listForEvent(tenantId, eventId) {
       return [...store.values()]
         .filter(s => s.tenantId === tenantId && s.eventId === eventId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map(s => ({ ...s }));
+        .map(s => structuredClone(s));
     },
   };
 }
