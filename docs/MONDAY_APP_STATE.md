@@ -19,6 +19,20 @@ This file records non-secret Developer Center metadata for development safety. V
 
 ## Client-side CDN deployment history
 
+### Milestone 5 (2026-09-03)
+
+| Field | Value |
+| --- | --- |
+| Deployment date | 2026-09-03 |
+| CLI version | `@mondaycom/apps-cli` 4.10.8 |
+| Command | `mapps code:push --client-side -s -d ./dist -i 17506248` |
+| CDN URL | `https://v0db73a92e586e9b83ce92ef3094ca4eb.cdn2.monday.app` |
+| Source archive | `https://v0db73a92e586e9b83ce92ef3094ca4eb.cdn2.monday.app/source/13298178.zip` |
+| Security scan | Passed (`-s` flag used) |
+| Build size | 245.79 kB JS / 26.32 kB CSS |
+| Tests at deploy | 201/201 passing (20 files) |
+| Notes | Client-side only; server-side (monday Code) requires manual deploy after Document DB and signing secret setup |
+
 ### Milestone 2 (2026-09-02)
 
 | Field | Value |
