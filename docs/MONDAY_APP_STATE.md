@@ -21,7 +21,23 @@ The `mapps` CLI was previously reported non-functional in this environment (an `
 | Build directory | `./dist` |
 | Intended development hosting | monday client-side code / CDN deployment |
 
-## Client-side CDN deployment history
+## Server-side deployment (current — final RC pass, 2026-09-03)
+
+| Field | Value |
+| --- | --- |
+| Command | `mapps code:push -d . -i 17506248 -s` (server-side; no `--client-side`) |
+| Server URL | `https://a3622-service-36719779-d5e6fb88.us.monday.app` |
+| Security scan | Passed, 0 findings (both deploys) |
+| Deploys this pass | 2 — the second to pick up an `app.set('trust proxy', 1)` fix found in the first deploy's console logs |
+| `GET /health` | `{"status":"ok","checks":{"api":true,"db":true}}` |
+| `GET /` | 200, `text/html` — static frontend now served from this same URL |
+| Ignore file | New `.mappsignore` (mirrors `.gitignore` but does not exclude `dist/`/`dist-server/`, which `.gitignore` correctly excludes from git but which must be included in the deploy tarball) |
+| **Manual action required** | The "Ariavel Sourcing Hub" feature's view/build URL in Developer Center still points at the old CDN URL below and needs to be manually updated to the server URL above — see `docs/PROJECT_STATE.md` |
+| **Manual action required** | `MONDAY_CLIENT_SECRET` key exists (`code:secret -m list-keys`) but the live deployment reports it missing (503 on every buyer route) — see `docs/PROJECT_STATE.md` |
+
+This supersedes the client-side CDN deployment history below, which is kept only as a historical record of M2–M5.
+
+## Client-side CDN deployment history (historical — superseded above)
 
 ### Milestone 5 (2026-09-03)
 
