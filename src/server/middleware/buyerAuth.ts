@@ -12,6 +12,12 @@ declare global {
 
 export function createBuyerAuthMiddleware(clientSecret: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    // MONDAY_CLIENT_SECRET not yet configured (first-release bootstrap).
+    // Refuse all buyer requests with 503 — authentication is NOT bypassed.
+    if (!clientSecret) {
+      res.status(503).json({ error: 'Service not configured — MONDAY_CLIENT_SECRET is missing' });
+      return;
+    }
     const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({ error: 'Missing Authorization header' });
