@@ -21,6 +21,7 @@ import { createBuyerDocumentRouter, createPortalDocumentRouter } from './routes/
 import { createSettingsRouter } from './routes/settingsRoutes.js';
 import { createAuditRouter } from './routes/auditRoutes.js';
 import { createDataRouter } from './routes/dataRoutes.js';
+import { createLifecycleRouter } from './routes/lifecycleRoutes.js';
 import { createDevStorageRouter } from './routes/devStorageRoutes.js';
 import type { InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
 import type { AttachmentRepository } from './db/attachmentRepository.js';
@@ -123,6 +124,7 @@ export function createApp(
   if (dataService) {
     app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createDataRouter(dataService));
   }
+  app.use('/api', createLifecycleRouter(clientSecret, dataService));
 
   if (devStorage) {
     app.use('/api/dev-storage', createDevStorageRouter(devStorage.provider, devStorage.attachmentRepo));

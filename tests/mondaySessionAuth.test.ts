@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { verifyBuyerSessionToken, MondaySessionAuthError } from '../src/server/auth/mondaySessionAuth';
+import { verifyBuyerSessionToken, verifyAppLifecycleToken, MondaySessionAuthError } from '../src/server/auth/mondaySessionAuth';
 
 const CLIENT_SECRET = 'test-client-secret-minimum-32-chars!!';
 const SIGNING_SECRET = 'completely-different-signing-secret!!';
@@ -77,5 +77,38 @@ describe('verifyBuyerSessionToken', () => {
     expect(sessionA.accountId).toBe(1001);
     expect(sessionB.accountId).toBe(1002);
     expect(sessionA.accountId).not.toBe(sessionB.accountId);
+  });
+});
+
+describe('verifyAppLifecycleToken', () => {
+  function makeLifecycleToken(payload: object, secret = CLIENT_SECRET, opts: jwt.SignOptions = { expiresIn: '1h' }) {
+    return jwt.sign(payload, secret, opts);
+  }
+
+  it('accepts a valid lifecycle token (top-level accountId, no dat wrapper)', () => {
+    const token = makeLifecycleToken({ accountId: 1825528, userId: 4012689, shortLivedToken: 'slt' });
+    const event = verifyAppLifecycleToken(token, CLIENT_SECRET);
+    expect(event.accountId).toBe(1825528);
+    expect(event.userId).toBe(4012689);
+  });
+
+  it('rejects a token signed with a different secret (e.g. the Signing Secret) — Client Secret only', () => {
+    const token = makeLifecycleToken({ accountId: 123 }, SIGNING_SECRET);
+    expect(() => verifyAppLifecycleToken(token, CLIENT_SECRET)).toThrow(MondaySessionAuthError);
+  });
+
+  it('rejects an expired token', () => {
+    const token = makeLifecycleToken({ accountId: 123 }, CLIENT_SECRET, { expiresIn: '-1s' });
+    expect(() => verifyAppLifecycleToken(token, CLIENT_SECRET)).toThrow(MondaySessionAuthError);
+  });
+
+  it('rejects a token missing accountId', () => {
+    const token = makeLifecycleToken({ userId: 456 });
+    expect(() => verifyAppLifecycleToken(token, CLIENT_SECRET)).toThrow(MondaySessionAuthError);
+  });
+
+  it('rejects a token with a non-numeric accountId', () => {
+    const token = makeLifecycleToken({ accountId: '123' });
+    expect(() => verifyAppLifecycleToken(token, CLIENT_SECRET)).toThrow(MondaySessionAuthError);
   });
 });
