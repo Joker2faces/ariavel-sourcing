@@ -2,6 +2,10 @@
 
 This file records non-secret Developer Center metadata for development safety. Verify it against Developer Center or authenticated CLI output before every deployment or destructive operation.
 
+## Verification status (2026-09-03, post-secret-configuration session)
+
+The table below is **not re-verified** this session — `mapps` CLI is non-functional in this environment (`~/.config/configstore` is access-denied to the current user, blocking all `mapps` subcommands including `--help`). Server/client redeploy to pick up the newly configured `MONDAY_CLIENT_SECRET` could not be performed. Treat the draft App Version ID below as last-known, not current, until the CLI access issue is fixed and `mapps app-version:list -i 12049778` is re-run.
+
 ## Confirmed inventory
 
 | Setting | Confirmed value |

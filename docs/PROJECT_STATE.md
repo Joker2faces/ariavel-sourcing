@@ -17,15 +17,21 @@ main (never merged into)
 ```
 
 ## Latest Commit
-See `git log --oneline -5` for exact SHA.
+`2751a81a55e4fcda611052edf5ba3959916266d3` — fix(build): stop tracking compiled dist-server output
 
 ## Working Tree State
-Clean after M9 commit.
+Clean (tracked files). Two untracked local-only files present (not committed): `code.tar.gz` (a prior packaging artifact) and `security-scan-17506248-*.json` (an earlier empty scan result), both harmless and left in place.
 
-## Test Results (M9 Release Candidate)
+## Test Results (Fresh Run — 2026-09-03, post-secret-configuration)
 - **338 tests, 28 test files, all passing**
-- 0 TSC errors (frontend + server)
-- Frontend build: OK
+- `npx tsc --noEmit -p tsconfig.app.json` — 0 errors
+- `npx tsc --noEmit -p tsconfig.server.json` — 0 errors
+- `npm run lint` — 0 errors (previously 24 false-positive errors from linting committed `dist-server/` output; fixed by untracking it and excluding it in `eslint.config.js`)
+- `npm run build` — clean (259.55 kB JS / 41.14 kB CSS)
+- `npm run build:server` — clean
+- `git diff --check` — clean
+- `npm audit` — **could not run**: npm registry is configured to `registry.npmmirror.com`, which returns `501 NOT_IMPLEMENTED` for the audit endpoint. Not fixed (registry config is an environment choice, not touched without explicit instruction).
+- Secret scan (tracked files, dist/, dist-server/): no literal secret values found; only `process.env['MONDAY_CLIENT_SECRET']` / `MONDAY_SIGNING_SECRET` name references.
 
 ## What Was Built (M9)
 
@@ -57,14 +63,16 @@ Clean after M9 commit.
 - `docs/MONETIZATION_PLAN.md`
 
 ## Deployment State
-- **Frontend:** Not yet deployed (requires Developer Center action — STOP CONDITION)
-- **Backend (monday Code):** Not yet deployed (requires Developer Center action — STOP CONDITION)
-- **Marketplace:** Not submitted (requires owner action — STOP CONDITION)
+- **MONDAY_CLIENT_SECRET:** Configured by owner (2026-09-03). Value never retrieved/printed by this session.
+- **`mapps` CLI:** **Non-functional in this environment.** Every invocation (`app:list`, `--help`, even bare `mapps`) fails silently — `~/.config/configstore` is access-denied to the current OS user (`icacls` also returns "Access is denied" on it), so the CLI cannot read/write its auth/config store. This blocked all of: verifying the current draft App Version ID, listing app features, and redeploying server/client code to monday Code. Not resolved — fixing OS-level ownership/permissions on that directory requires elevated access this session did not attempt (privilege escalation is out of scope without explicit user instruction).
+- **Frontend:** Not deployed this session (blocked by the CLI issue above, in addition to the pre-existing Developer Center stop condition).
+- **Backend (monday Code):** Not redeployed this session (same CLI blocker). Last known deployed server build predates `MONDAY_CLIENT_SECRET` being set, so the running instance (if any) will still 503 buyer routes until redeployed.
+- **Marketplace:** Not submitted (owner action — STOP CONDITION, unchanged).
 
 ## Manual Blockers (Genuine Owner Action Required)
-1. **MONDAY_CLIENT_SECRET** — Must be set in monday Code environment
-2. **MONDAY_SIGNING_SECRET** — Must be set in monday Code environment
-3. **monday Code deployment** — Upload build via Developer Center
+1. **Fix `mapps` CLI access** — grant the current Windows user ownership/permissions on `C:\Users\thodo\.config\configstore` (or reset/relocate that config store), then re-run `mapps app:list` to confirm auth still holds.
+2. **monday Code server redeploy** — once the CLI works, push server code to the current draft so the runtime picks up `MONDAY_CLIENT_SECRET`.
+3. **monday Code frontend redeploy** — push `./dist` to the same draft.
 4. **App listing** — Screenshots, description, icon
 5. **Legal** — Privacy policy URL, Terms of service URL
 6. **Monetization** — Decide free vs. paid before submission (see MONETIZATION_PLAN.md)
