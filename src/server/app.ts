@@ -8,12 +8,19 @@ import type { BidComparisonService } from './services/bidComparisonService.js';
 import type { AwardService } from './services/awardService.js';
 import type { DocumentService } from './services/documentService.js';
 import { createBuyerAuthMiddleware } from './middleware/buyerAuth.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
+import { noSqlInjectionMiddleware } from './middleware/noSqlInjection.js';
 import { createBuyerRouter } from './routes/buyerRoutes.js';
 import { createPortalRouter } from './routes/portalRoutes.js';
 import { createBuyerDocumentRouter } from './routes/documentRoutes.js';
 
 const PORTAL_RATE_LIMIT = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
 const BUYER_RATE_LIMIT = rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false });
+
+export interface HealthDependencies {
+  checkDb?: () => Promise<boolean>;
+  checkStorage?: () => Promise<boolean>;
+}
 
 export function createApp(
   invitationService: InvitationService,
@@ -22,15 +29,49 @@ export function createApp(
   bidComparisonService?: BidComparisonService,
   awardService?: AwardService,
   documentService?: DocumentService,
+  healthDeps?: HealthDependencies,
 ) {
   const app = express();
 
-  app.use(helmet());
+  app.use(requestIdMiddleware);
+
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'", 'https://*.monday.com'],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
+
   app.use(cors({ origin: false }));
   app.use(express.json({ limit: '256kb' }));
+  app.use(noSqlInjectionMiddleware);
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'ariavel-sourcing' });
+  app.get('/health', async (_req, res) => {
+    const checks: Record<string, boolean> = { api: true };
+
+    if (healthDeps?.checkDb) {
+      try { checks['db'] = await healthDeps.checkDb(); } catch { checks['db'] = false; }
+    }
+    if (healthDeps?.checkStorage) {
+      try { checks['storage'] = await healthDeps.checkStorage(); } catch { checks['storage'] = false; }
+    }
+
+    const allOk = Object.values(checks).every(Boolean);
+    res.status(allOk ? 200 : 503).json({
+      status: allOk ? 'ok' : 'degraded',
+      service: 'ariavel-sourcing',
+      checks,
+    });
   });
 
   const buyerAuth = createBuyerAuthMiddleware(clientSecret);

@@ -1,3 +1,99 @@
+/* ── Design System Tokens (M9) ─────────────────────────────────────────── */
+:root {
+  /* Ariavel brand — deep navy + clean blue */
+  --color-brand-navy: #172033;
+  --color-brand-navy-mid: #253047;
+  --color-brand-blue: #1264e8;
+  --color-brand-blue-hover: #0b54c8;
+  --color-brand-blue-light: #edf4ff;
+
+  /* Neutrals */
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f7f8fa;
+  --color-surface-tertiary: #f0f3f7;
+  --color-border: #e1e5ea;
+  --color-border-subtle: #edf0f4;
+  --color-border-strong: #cfd6df;
+
+  /* Text */
+  --color-text-primary: #1c2638;
+  --color-text-secondary: #667286;
+  --color-text-tertiary: #9ca3af;
+  --color-text-on-dark: #ffffff;
+
+  /* Semantic */
+  --color-success: #166534;
+  --color-success-bg: #e9f6ed;
+  --color-warning: #92400e;
+  --color-warning-bg: #fef3c7;
+  --color-error: #a31e2a;
+  --color-error-bg: #fff0f1;
+  --color-info: #1264e8;
+  --color-info-bg: #edf4ff;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.10);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+
+  /* Focus */
+  --focus-ring: 0 0 0 3px rgba(18,100,232,0.28);
+  --focus-ring-offset: 2px;
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-base: 200ms ease;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: #1a1f2e;
+    --color-surface-secondary: #141926;
+    --color-surface-tertiary: #1f2840;
+    --color-border: #2e3650;
+    --color-border-subtle: #242c42;
+    --color-border-strong: #3a4460;
+    --color-text-primary: #e8ecf4;
+    --color-text-secondary: #8b95aa;
+    --color-text-tertiary: #5c6880;
+    --color-brand-navy: #dde3ef;
+    --color-brand-navy-mid: #c4cede;
+    color-scheme: dark;
+  }
+}
+
 :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2937; background: #f7f8fa; font-synthesis: none; }
 * { box-sizing: border-box; } body { margin: 0; min-width: 320px; } button { font: inherit; cursor: pointer; } .app-shell { display: flex; min-height: 100vh; }
 .sidebar { width: 272px; flex: 0 0 272px; background: #fff; border-right: 1px solid #e1e5ea; display: flex; flex-direction: column; padding: 20px 16px 18px; } .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 30px; font-size: 20px; font-weight: 700; color: #172033; } .brand-mark { color: #3b4658; display: flex; } nav { display: grid; gap: 7px; } .nav-item { display: flex; gap: 16px; align-items: center; border: 0; color: #384457; background: transparent; text-align: left; border-radius: 9px; padding: 14px 14px; font-size: 15px; font-weight: 500; } .nav-item:hover, .nav-item.selected { background: #edf4ff; color: #1264e8; } .sidebar-footer { margin-top: auto; border-top: 1px solid #e6e9ee; padding: 18px 10px 0; display: flex; gap: 9px; align-items: center; color: #536073; font-size: 13px; } .monday-dots { color: #ef4e45; letter-spacing: -3px; font-size: 12px; }.mobile-navigation { display: none; }
@@ -323,3 +419,93 @@ th.sticky-col { z-index: 3; }
 .eval-tech-edit input[type="text"] { min-height: 32px; border: 1px solid #cfd6df; border-radius: 5px; padding: 4px 8px; font: inherit; }
 .eval-tech-actions { display: flex; gap: 6px; }
 .eval-tech-actions .primary-button { padding: 4px 10px; font-size: 12px; }
+
+/* ── M9 — Error Boundary ───────────────────────────────────────────────── */
+.error-boundary-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; flex: 1; padding: 40px 16px; }
+.error-boundary-card { background: #fff; border: 1px solid #f1bec3; border-radius: 10px; padding: 36px 40px; max-width: 440px; width: 100%; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.error-boundary-card h2 { margin: 0 0 10px; color: #a31e2a; font-size: 22px; }
+.error-boundary-msg { color: #536073; font-size: 14px; margin: 0 0 14px; }
+.error-boundary-id { color: #9ca3af; font-size: 12px; margin: 0 0 22px; }
+.error-boundary-id code { background: #f0f3f7; border-radius: 4px; padding: 2px 6px; font-size: 11px; }
+.error-boundary-actions { display: flex; gap: 10px; justify-content: center; }
+
+/* ── M9 — Onboarding Flow ──────────────────────────────────────────────── */
+.onboarding-overlay { position: fixed; inset: 0; background: rgba(14,22,42,.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.onboarding-card { background: #fff; border-radius: 14px; width: 100%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,.22); display: flex; flex-direction: column; overflow: hidden; }
+.onboarding-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 0; }
+.onboarding-steps-indicator { display: flex; gap: 8px; }
+.onboarding-step-dot { width: 10px; height: 10px; border-radius: 50%; border: 0; background: #e0e5eb; padding: 0; cursor: pointer; transition: background var(--transition-fast); }
+.onboarding-step-dot.active { background: #1264e8; }
+.onboarding-step-dot.done { background: #166534; }
+.onboarding-step-dot:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.onboarding-skip { border: 0; background: transparent; color: #9ca3af; font-size: 13px; cursor: pointer; padding: 4px 0; }
+.onboarding-skip:hover { color: #536073; }
+.onboarding-content { padding: 28px 32px 24px; text-align: center; }
+.onboarding-icon { font-size: 52px; margin-bottom: 16px; line-height: 1; }
+.onboarding-step-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+.onboarding-title { margin: 0 0 8px; font-size: 22px; color: #172033; font-weight: 700; }
+.onboarding-description { margin: 0 0 6px; font-size: 14px; color: #536073; font-weight: 600; }
+.onboarding-detail { margin: 0; font-size: 14px; color: #667286; line-height: 1.6; }
+.onboarding-footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 18px 24px; border-top: 1px solid #f0f3f7; }
+.onboarding-next { min-width: 120px; }
+
+/* ── M9 — Settings Page (full 6-section layout) ────────────────────────── */
+.settings-page { padding: 48px 40px 40px; max-width: 960px; margin: 0 auto; }
+.settings-layout { display: grid; grid-template-columns: 200px 1fr; gap: 32px; margin-top: 28px; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; }
+.settings-nav-item { border: 0; background: transparent; text-align: left; padding: 9px 14px; border-radius: 7px; font-size: 14px; color: #536073; font-weight: 500; cursor: pointer; }
+.settings-nav-item:hover { background: #f0f3f7; color: #1c2638; }
+.settings-nav-item.active { background: #edf4ff; color: #1264e8; font-weight: 600; }
+.settings-content { min-width: 0; }
+.settings-section { display: flex; flex-direction: column; gap: 20px; }
+.settings-card { background: #fff; border: 1px solid #e0e5eb; border-radius: 8px; overflow: hidden; }
+.settings-card-title { margin: 0; padding: 12px 16px; font-size: 12px; font-weight: 700; color: #334056; text-transform: uppercase; letter-spacing: .05em; background: #f8fafc; border-bottom: 1px solid #e6e9ef; }
+.settings-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f0f3f7; }
+.settings-row:last-child { border-bottom: none; }
+.settings-row-label { display: flex; flex-direction: column; gap: 2px; }
+.settings-row-label > span:first-child { font-size: 13px; color: #334056; }
+.settings-row-note { font-size: 11px; color: #9ca3af; line-height: 1.4; }
+.settings-row-value { font-size: 13px; color: #536073; text-align: right; }
+.settings-badge { display: inline-block; border-radius: 12px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.badge-success { background: #e9f6ed; color: #166534; }
+.badge-neutral { background: #f0f3f7; color: #596477; }
+.badge-info { background: #edf4ff; color: #1264e8; }
+.settings-code { font-family: "SF Mono", Consolas, monospace; font-size: 11px; background: #f0f3f7; border-radius: 4px; padding: 2px 6px; color: #334056; }
+.settings-link { color: #1264e8; text-decoration: none; }
+.settings-link:hover { text-decoration: underline; }
+.settings-select, .settings-input { min-height: 36px; border: 1px solid #cfd6df; border-radius: 6px; background: #fff; color: #202c40; padding: 6px 10px; font: inherit; font-size: 13px; min-width: 160px; }
+.settings-helper { margin: 0 0 12px; font-size: 13px; color: #667286; padding: 0 16px; }
+.settings-error-text { color: #a31e2a; }
+.weight-input-group { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #536073; }
+.weight-input { width: 70px !important; min-width: 70px !important; text-align: right; }
+.settings-toggle { display: inline-flex; align-items: center; cursor: pointer; }
+.settings-toggle input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track { width: 40px; height: 22px; background: #d1d5db; border-radius: 11px; position: relative; transition: background var(--transition-fast); }
+.settings-toggle input:checked + .toggle-track { background: #1264e8; }
+.toggle-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: left var(--transition-fast); }
+.settings-toggle input:checked + .toggle-track .toggle-thumb { left: 21px; }
+.settings-toggle:focus-within .toggle-track { box-shadow: var(--focus-ring); }
+.settings-status-flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.settings-status-flow-item { display: flex; align-items: center; gap: 6px; }
+.status-chip { background: #edf4ff; color: #1264e8; border-radius: 12px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+.flow-arrow { color: #9ca3af; font-size: 12px; }
+.settings-feature-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #f0f3f7; font-size: 13px; color: #334056; }
+.settings-feature-row:last-child { border-bottom: none; }
+.settings-feature-check { color: #166534; font-weight: 700; width: 18px; }
+
+@media (max-width: 768px) {
+  .settings-page { padding: 24px 16px; }
+  .settings-layout { grid-template-columns: 1fr; }
+  .settings-nav { flex-direction: row; flex-wrap: wrap; }
+  .settings-nav-item { padding: 7px 12px; font-size: 13px; }
+  .settings-row { grid-template-columns: 1fr; gap: 6px; }
+  .settings-row-value { text-align: left; }
+  .settings-select, .settings-input { min-width: unset; width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .onboarding-card { max-width: 100%; border-radius: 10px; }
+  .onboarding-content { padding: 20px 20px 16px; }
+  .onboarding-footer { padding: 14px 20px; }
+  .error-boundary-card { padding: 24px 20px; }
+}

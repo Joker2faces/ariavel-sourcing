@@ -17,10 +17,14 @@ import { deriveCapabilities, fullCapabilities } from '../backend/runtime/runtime
 import type { SourcingEvent, SourcingEventStatus } from '../shared/types/domain';
 import { isClosingSoon, formatDeadlineDisplay } from '../shared/utils/deadline';
 import { Icon } from './components/Icon';
+import { ErrorBoundary } from './ErrorBoundary';
+import { OnboardingFlow } from './onboarding/OnboardingFlow';
 import { SuppliersPage } from './suppliers/SuppliersPage';
 import { SourcingEventsPage } from './sourcing/SourcingEventsPage';
 import { SettingsPage } from './settings/SettingsPage';
 import './styles.css';
+
+const ONBOARDING_KEY = 'ariavel_onboarding_done';
 
 const nav = [{ label: 'Sourcing Events', icon: 'clipboard' }, { label: 'Suppliers', icon: 'users' }, { label: 'Awards', icon: 'trophy' }, { label: 'Settings', icon: 'settings' }] as const;
 
@@ -104,7 +108,17 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
 
 export default function App({ supplierService: injSupplier, eventService: injEvent }: { supplierService?: SupplierService; eventService?: SourcingEventService }) {
   const [activeNav, setActiveNav] = useState('Sourcing Events');
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (injSupplier || injEvent) return false;
+    if (detectRuntimeMode() !== RuntimeMode.MONDAY) return false;
+    try { return !localStorage.getItem(ONBOARDING_KEY); } catch { return false; }
+  });
   const { services, loading, error } = useRuntimeServices({ supplierService: injSupplier, eventService: injEvent });
+
+  const dismissOnboarding = () => {
+    try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
+    setShowOnboarding(false);
+  };
 
   if (loading) {
     return (
@@ -132,6 +146,8 @@ export default function App({ supplierService: injSupplier, eventService: injEve
   }
 
   return (
+    <ErrorBoundary>
+      {showOnboarding && <OnboardingFlow onComplete={dismissOnboarding} onSkip={dismissOnboarding} />}
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark"><Icon name="grid" size={24} /></span><span>Ariavel Sourcing</span></div>
@@ -153,6 +169,7 @@ export default function App({ supplierService: injSupplier, eventService: injEve
           : <PlaceholderPage title={activeNav} />}
       </main>
     </div>
+    </ErrorBoundary>
   );
 }
 
