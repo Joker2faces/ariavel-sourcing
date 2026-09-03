@@ -12,7 +12,7 @@
 
 - [x] `npm run build` (`tsc -b && vite build`) — 0 errors
 - [x] `npm run build:server` (`tsc -p tsconfig.server.json`) — 0 errors
-- [x] `npm test` — 414/414 passing (39 files)
+- [x] `npm test` — 437/437 passing (41 files)
 - [x] `npm run lint` — 0 errors
 - [x] `git diff --check` — clean
 - [x] `npm audit --registry=https://registry.npmjs.org/` (one-shot override — the configured mirror doesn't implement the audit endpoint) — 13 advisories, all in dev-only tooling or `@mondaycom/apps-sdk`'s own dependency chain, none in the app's runtime path; not force-fixed
@@ -67,9 +67,10 @@
 
 These items require manual action by the app owner and are outside the scope of the code release:
 
-- [x] Set `MONDAY_CLIENT_SECRET` in monday Code environment (done 2026-09-03)
-- [ ] Set `MONDAY_SIGNING_SECRET` — only once an actual monday-originated webhook route is added (none exists yet)
-- [ ] Upload build to monday Code (Developer Center) — server-side push of the whole project (built `dist/` + `dist-server/`), not a separate client-side CDN push (see architecture change: frontend is now served by the same server)
+- [x] Set `MONDAY_CLIENT_SECRET` in monday Code environment (done 2026-09-03; the app initially couldn't see it because it was reading `process.env` instead of the SDK's `SecretsManager` — fixed and verified live, see `docs/PROJECT_STATE.md`)
+- [ ] Set `MONDAY_SIGNING_SECRET` — only once an actual board/item integration webhook route is added (none exists yet — the separate app-lifecycle uninstall webhook now implemented uses the Client Secret instead)
+- [x] Upload build to monday Code (Developer Center) — server-side push of the whole project (built `dist/` + `dist-server/`), deployed and verified live
+- [ ] Register the App Events webhook URL (`/api/lifecycle/events`) in Developer Center — see `docs/PROJECT_STATE.md` for the exact current URL
 - [ ] Verify `/health` returns `status: "ok"` post-deploy
 - [ ] Smoke test: add supplier → create event → send invitation → submit quote → compare → award
 - [ ] Review and finalize app listing copy (name, tagline, description, screenshots)
@@ -97,8 +98,10 @@ If a critical bug is found post-deploy:
 | Item | Priority | Notes |
 |---|---|---|
 | Optimistic concurrency on quotes/comparisons/award-line edits | Medium | Settings and award finalization already have version/state guards; quotes and comparisons are effectively single-writer in practice but not enforced |
-| Uninstall/deauthorization webhook | Medium | `MONDAY_SIGNING_SECRET` verification function exists and is tested, but nothing calls it yet — no monday-originated webhook route exists |
+| Board/item integration webhook (would use `MONDAY_SIGNING_SECRET`) | Low | Verification function exists and is tested, but nothing calls it — no such route exists, and none is currently needed |
 | Performance test: 500 suppliers, 100 concurrent RFQs | Low | Not exercised against real data volumes yet |
 | Pixel-level visual QA of new screens (Comparison, Award Workspace, Activity, Data & Privacy) across breakpoints/dark mode | Low | Built to the existing design-token system and functionally tested; not verified in a live browser at every breakpoint |
 
 **Resolved this pass** (previously listed as technical debt): persistent storage for invitations/quotes/comparisons/awards/settings (all now Mongo-backed with in-memory dev fallback only), email delivery for portal links (deliberate manual-delivery UX, not automated — see Phase 5 of the completion program), real-time-ish quote status updates (20s visibility-aware polling), audit log export (CSV).
+
+**Resolved in the corrective pass** (previously listed as critical defects): `MONDAY_CLIENT_SECRET` not resolving in the deployed runtime (was reading `process.env` instead of `SecretsManager`), the Custom Object feature still pointing at the retired CDN URL, `express-rate-limit` erroring on every request (missing `trust proxy`), the app shell not respecting dark mode, and the uninstall/deauthorization webhook (now implemented, verified against current monday docs to use the Client Secret).

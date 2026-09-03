@@ -27,13 +27,14 @@ The `mapps` CLI was previously reported non-functional in this environment (an `
 | --- | --- |
 | Command | `mapps code:push -d . -i 17506248 -s` (server-side; no `--client-side`) |
 | Server URL | `https://a3622-service-36719779-d5e6fb88.us.monday.app` |
-| Security scan | Passed, 0 findings (both deploys) |
-| Deploys this pass | 2 — the second to pick up an `app.set('trust proxy', 1)` fix found in the first deploy's console logs |
+| Security scan | Passed, 0 findings (all 4 deploys) |
+| Deploys across both passes | 4 — trust-proxy fix, secret-provider fix, lifecycle webhook, dark-mode shell fix |
 | `GET /health` | `{"status":"ok","checks":{"api":true,"db":true}}` |
-| `GET /` | 200, `text/html` — static frontend now served from this same URL |
+| `GET /` | 200, `text/html` — static frontend served from this same URL |
+| `GET /api/buyer/settings` (no auth) | 401 (was 503 "MONDAY_CLIENT_SECRET is missing" — fixed via SecretsManager, see `docs/PROJECT_STATE.md`) |
+| Feature binding | Rebound via `mapps app-features:build -a 12049778 -i 17506248 -d 123330040 -t monday_code` to this exact server URL — confirmed by the CLI's own success message. No manual Developer Center action was needed. |
 | Ignore file | New `.mappsignore` (mirrors `.gitignore` but does not exclude `dist/`/`dist-server/`, which `.gitignore` correctly excludes from git but which must be included in the deploy tarball) |
-| **Manual action required** | The "Ariavel Sourcing Hub" feature's view/build URL in Developer Center still points at the old CDN URL below and needs to be manually updated to the server URL above — see `docs/PROJECT_STATE.md` |
-| **Manual action required** | `MONDAY_CLIENT_SECRET` key exists (`code:secret -m list-keys`) but the live deployment reports it missing (503 on every buyer route) — see `docs/PROJECT_STATE.md` |
+| **Manual action still required** | Register `https://a3622-service-36719779-d5e6fb88.us.monday.app/api/lifecycle/events` as the App Events webhook URL in Developer Center — not configured automatically, see `docs/PROJECT_STATE.md` |
 
 This supersedes the client-side CDN deployment history below, which is kept only as a historical record of M2–M5.
 
@@ -109,6 +110,9 @@ mapps app-version:list -i 12049778
 mapps app-features:list -a 12049778 -i 17506248
 npm run build && npm run build:server
 mapps code:push -d . -i 17506248 -s
+# After a fresh server-side deploy, rebind the EXISTING feature (never create a new one) to it:
+mapps app-features:build -a 12049778 -i 17506248 -d 123330040 -t monday_code
+# (prompts "Add your route to monday-code base url" — press Enter for none)
 ```
 
 The final command (server-side push, security-scanned, no `--client-side`) is permitted only for the verified development draft. It does not authorize promotion, release, or Marketplace submission.

@@ -59,7 +59,7 @@ Status categories used below (per instruction, not "complete because tests exist
 
 ## Test Coverage
 
-**414 tests, 39 test files, all passing** (fresh run, 2026-09-03) — up from 338/28 at the start of this pass. New coverage added this pass: Object Storage adapter + document routes, tenant settings service + routes, split-award service logic, Award Workspace and Comparison Panel components, audit query/export service + routes + Activity tab, invitation delivery UX, tenant data export/deletion service + routes. Historical per-suite breakdowns are not reproduced here — they drift too fast to keep accurate; run `npm test` for the current count.
+**437 tests, 41 test files, all passing** (fresh run, 2026-09-04) — up from 338/28 at the start of this Release Candidate completion effort. New coverage added this pass: Object Storage adapter + document routes, tenant settings service + routes, split-award service logic, Award Workspace and Comparison Panel components, audit query/export service + routes + Activity tab, invitation delivery UX, tenant data export/deletion service + routes. Historical per-suite breakdowns are not reproduced here — they drift too fast to keep accurate; run `npm test` for the current count.
 
 ---
 
@@ -67,15 +67,16 @@ Status categories used below (per instruction, not "complete because tests exist
 
 The following tasks require owner decisions or credentials and cannot be automated:
 
-1. ~~Enter MONDAY_CLIENT_SECRET~~ — done (2026-09-03)
-2. **Enter MONDAY_SIGNING_SECRET** — only needed once an actual monday-originated webhook/lifecycle route is added (none exists yet; the verification function is written and tested but unwired)
-3. **App listing copy** — screenshots, description, icon
-4. **Legal review** — privacy policy URL, terms of service URL
-5. **Monetization decision** — free tier vs. paid plan configuration
-6. **Support email** confirmation
-7. **Multi-region** — decide whether to enable (requires monday support)
-8. **App installation** — required for the installation-QA items above
-9. **Marketplace submission** — final Submit click in Developer Center
+1. ~~Enter MONDAY_CLIENT_SECRET~~ — done and now correctly resolved by the app (was reading `process.env` instead of `SecretsManager`; fixed and verified live)
+2. **Register the App Events webhook URL** (`/api/lifecycle/events`, uses the existing Client Secret) in Developer Center — the uninstall→data-deletion endpoint is implemented and tested but not registered
+3. **Enter MONDAY_SIGNING_SECRET** — only needed if a board/item integration webhook is added later (none exists; not the same secret as the lifecycle webhook above)
+4. **App listing copy** — screenshots, description, icon
+5. **Legal review** — privacy policy URL, terms of service URL
+6. **Monetization decision** — free tier vs. paid plan configuration
+7. **Support email** confirmation
+8. **Multi-region** — decide whether to enable (requires monday support)
+9. **App installation** — required for the installation-QA items above
+10. **Marketplace submission** — final Submit click in Developer Center
 
 ---
 
