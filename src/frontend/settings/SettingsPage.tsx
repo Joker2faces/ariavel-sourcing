@@ -27,6 +27,7 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, api
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!apiClient) { setSettings(defaultTenantSettings('local', new Date().toISOString())); setLoading(false); return; }
@@ -40,10 +41,12 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, api
 
   async function save(input: TenantSettingsInput) {
     if (!apiClient || !settings) { setNotice({ tone: 'error', text: 'Not connected to the server.' }); return; }
+    setSaving(true);
+    setNotice(null);
     try {
       const updated = await apiClient.updateSettings(input, settings.version);
       setSettings(updated);
-      setNotice({ tone: 'success', text: 'Settings saved.' });
+      setNotice({ tone: 'success', text: 'Saved.' });
     } catch (err) {
       const status = (err as { status?: number }).status;
       if (status === 409) {
@@ -53,6 +56,8 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, api
       } else {
         setNotice({ tone: 'error', text: 'Could not save settings.' });
       }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -90,10 +95,10 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, api
         </nav>
 
         <div className="settings-content">
-          {active === 'organization' && <OrganizationSection settings={settings} onSave={save} serverBaseUrl={serverBaseUrl} serverAvailable={serverAvailable} capabilities={capabilities} readOnly={!apiClient} />}
-          {active === 'sourcing' && <SourcingSection settings={settings} onSave={save} readOnly={!apiClient} />}
-          {active === 'comparison' && <ComparisonSection settings={settings} onSave={save} readOnly={!apiClient} />}
-          {active === 'security' && <SecuritySection settings={settings} onSave={save} capabilities={capabilities} readOnly={!apiClient} />}
+          {active === 'organization' && <OrganizationSection settings={settings} onSave={save} serverBaseUrl={serverBaseUrl} serverAvailable={serverAvailable} capabilities={capabilities} readOnly={!apiClient} saving={saving} />}
+          {active === 'sourcing' && <SourcingSection settings={settings} onSave={save} readOnly={!apiClient} saving={saving} />}
+          {active === 'comparison' && <ComparisonSection settings={settings} onSave={save} readOnly={!apiClient} saving={saving} />}
+          {active === 'security' && <SecuritySection settings={settings} onSave={save} capabilities={capabilities} readOnly={!apiClient} saving={saving} />}
           {active === 'data' && <DataPrivacySection apiClient={apiClient} />}
           {active === 'billing' && <BillingSection />}
         </div>
@@ -127,16 +132,16 @@ function StatusBadge({ ok, trueLabel = 'Yes', falseLabel = 'No' }: { ok: boolean
   return <span className={`settings-badge ${ok ? 'badge-success' : 'badge-neutral'}`}>{ok ? trueLabel : falseLabel}</span>;
 }
 
-function SaveButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
-  return <button className="primary-button settings-save-button" onClick={onClick} disabled={disabled}>Save changes</button>;
+function SaveButton({ onClick, disabled, saving }: { onClick: () => void; disabled?: boolean; saving?: boolean }) {
+  return <button className="primary-button settings-save-button" onClick={onClick} disabled={disabled || saving} aria-live="polite">{saving ? 'Saving…' : 'Save changes'}</button>;
 }
 
 function OrganizationSection({
-  settings, onSave, serverBaseUrl, serverAvailable, capabilities, readOnly,
+  settings, onSave, serverBaseUrl, serverAvailable, capabilities, readOnly, saving,
 }: {
   settings: TenantSettings;
   onSave: (input: TenantSettingsInput) => Promise<void>;
-  serverBaseUrl: string; serverAvailable: boolean; capabilities: RuntimeCapabilities; readOnly: boolean;
+  serverBaseUrl: string; serverAvailable: boolean; capabilities: RuntimeCapabilities; readOnly: boolean; saving?: boolean;
 }) {
   const [companyDisplayName, setCompanyDisplayName] = useState(settings.organization.companyDisplayName);
   const [supportEmail, setSupportEmail] = useState(settings.organization.supportEmail);
@@ -159,7 +164,7 @@ function OrganizationSection({
             {['EUR', 'USD', 'GBP', 'JPY', 'CNY', 'CHF'].map(c => <option key={c}>{c}</option>)}
           </select>
         } />
-        {!readOnly && <SaveButton onClick={() => onSave({ organization: { companyDisplayName, supportEmail, defaultCurrency } })} />}
+        {!readOnly && <SaveButton onClick={() => onSave({ organization: { companyDisplayName, supportEmail, defaultCurrency } })} saving={saving} />}
       </SettingsCard>
 
       <SettingsCard title="Backend Connection">
@@ -197,7 +202,7 @@ function OrganizationSection({
   );
 }
 
-function SourcingSection({ settings, onSave, readOnly }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; readOnly: boolean }) {
+function SourcingSection({ settings, onSave, readOnly, saving }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; readOnly: boolean; saving?: boolean }) {
   const [defaultRfqDeadlineDays, setDefaultRfqDeadlineDays] = useState(settings.sourcing.defaultRfqDeadlineDays);
   const [invitationExpiryDays, setInvitationExpiryDays] = useState(settings.sourcing.invitationExpiryDays);
   const [defaultIncoterm, setDefaultIncoterm] = useState(settings.sourcing.defaultIncoterm);
@@ -230,7 +235,7 @@ function SourcingSection({ settings, onSave, readOnly }: { settings: TenantSetti
             <span className="toggle-track"><span className="toggle-thumb" /></span>
           </label>
         } />
-        {!readOnly && <SaveButton onClick={() => onSave({ sourcing: { defaultRfqDeadlineDays, invitationExpiryDays, defaultIncoterm, defaultPaymentTerms, requireTargetPrice, autoCloseAtDeadline } })} />}
+        {!readOnly && <SaveButton onClick={() => onSave({ sourcing: { defaultRfqDeadlineDays, invitationExpiryDays, defaultIncoterm, defaultPaymentTerms, requireTargetPrice, autoCloseAtDeadline } })} saving={saving} />}
       </SettingsCard>
 
       <SettingsCard title="Event Lifecycle">
@@ -248,7 +253,7 @@ function SourcingSection({ settings, onSave, readOnly }: { settings: TenantSetti
           <div className="settings-status-flow">
             {['Draft', 'Ready', 'Open', 'Evaluating', 'Awarded'].map((s, i, arr) => (
               <span key={s} className="settings-status-flow-item">
-                <span className="status-chip">{s}</span>
+                <span className="settings-flow-chip">{s}</span>
                 {i < arr.length - 1 && <span className="flow-arrow" aria-hidden="true">→</span>}
               </span>
             ))}
@@ -259,7 +264,7 @@ function SourcingSection({ settings, onSave, readOnly }: { settings: TenantSetti
   );
 }
 
-function ComparisonSection({ settings, onSave, readOnly }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; readOnly: boolean }) {
+function ComparisonSection({ settings, onSave, readOnly, saving }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; readOnly: boolean; saving?: boolean }) {
   const [baseCurrency, setBaseCurrency] = useState(settings.comparison.baseCurrency);
   const [freightAllocationMethod, setFreightAllocationMethod] = useState<FreightAllocationMethod>(settings.comparison.freightAllocationMethod);
   const [closingSoonDays, setClosingSoonDays] = useState(settings.comparison.closingSoonDays);
@@ -318,6 +323,7 @@ function ComparisonSection({ settings, onSave, readOnly }: { settings: TenantSet
         {!readOnly && (
           <SaveButton
             disabled={totalWeight !== 100}
+            saving={saving}
             onClick={() => onSave({ comparison: { baseCurrency, freightAllocationMethod, closingSoonDays, weights: { landedCost: landedCostWeight, leadTime: leadTimeWeight, completeness: completenessWeight } } })}
           />
         )}
@@ -331,7 +337,7 @@ function ComparisonSection({ settings, onSave, readOnly }: { settings: TenantSet
   );
 }
 
-function SecuritySection({ settings, onSave, capabilities, readOnly }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; capabilities: RuntimeCapabilities; readOnly: boolean }) {
+function SecuritySection({ settings, onSave, capabilities, readOnly, saving }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; capabilities: RuntimeCapabilities; readOnly: boolean; saving?: boolean }) {
   const [allowSupplierDrafts, setAllowSupplierDrafts] = useState(settings.security.allowSupplierDrafts);
   const [submittedQuoteReopenPolicy, setSubmittedQuoteReopenPolicy] = useState(settings.security.submittedQuoteReopenPolicy);
 
@@ -351,7 +357,7 @@ function SecuritySection({ settings, onSave, capabilities, readOnly }: { setting
             <option value="BUYER_APPROVAL_REQUIRED">Allow with buyer approval (not yet enforced server-side)</option>
           </select>
         } />
-        {!readOnly && <SaveButton onClick={() => onSave({ security: { allowSupplierDrafts, submittedQuoteReopenPolicy } })} />}
+        {!readOnly && <SaveButton onClick={() => onSave({ security: { allowSupplierDrafts, submittedQuoteReopenPolicy } })} saving={saving} />}
       </SettingsCard>
 
       <SettingsCard title="Authentication">

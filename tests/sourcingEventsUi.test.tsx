@@ -221,8 +221,9 @@ describe('Cancel event', () => {
     const user = userEvent.setup();
     render(<App eventService={makeEventService()} />);
     await openSourcingEvents();
-    const cancelBtns = await screen.findAllByRole('button', { name: /Cancel RFQ-2026-AA/i });
-    await user.click(cancelBtns[0]);
+    const overflowBtns = await screen.findAllByRole('button', { name: /More actions for RFQ-2026-AA/i });
+    await user.click(overflowBtns[0]);
+    await user.click((await screen.findAllByRole('menuitem', { name: 'Cancel event' }))[0]);
     expect(await screen.findByRole('status')).toHaveTextContent('Sourcing event cancelled.');
   });
 });

@@ -91,7 +91,8 @@ describe('Supplier Master', () => {
   it('changes supplier status without deleting the supplier', async () => {
     const user = renderSuppliers();
     await openSuppliers(user);
-    await user.click(screen.getAllByRole('button', { name: 'Deactivate Acme Materials' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'More actions for Acme Materials' })[0]);
+    await user.click(screen.getAllByRole('menuitem', { name: 'Deactivate' })[0]);
     expect(await screen.findByText('Supplier status changed.')).toBeInTheDocument();
     expect(screen.getAllByText('Acme Materials').length).toBeGreaterThan(0);
   });

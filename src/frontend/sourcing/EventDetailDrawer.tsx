@@ -7,15 +7,7 @@ import { formatDeadlineDisplay, isOverdue, isClosingSoon } from '../../shared/ut
 import { InvitationsPanel } from './InvitationsPanel';
 import { ComparisonPanel } from './ComparisonPanel';
 import { ActivityPanel } from './ActivityPanel';
-
-const STATUS_LABEL: Record<SourcingEventStatus, string> = {
-  DRAFT: 'Draft',
-  READY_FOR_INVITATION: 'Ready for Invitation',
-  OPEN: 'Open',
-  EVALUATING: 'Evaluating',
-  AWARDED: 'Awarded',
-  CANCELLED: 'Cancelled',
-};
+import { EventStatusChip } from './eventStatus';
 
 export function EventDetailDrawer({
   event,
@@ -56,9 +48,9 @@ export function EventDetailDrawer({
 
         <div className="drawer-body">
           <div className="detail-hero">
-            <div>
-              <span className={`rfq-status rfq-status-${event.status.toLowerCase().replace(/_/g, '-')}`}>{STATUS_LABEL[event.status]}</span>
-              {event.deadline && <span className={`deadline-badge ${deadlineClass}`} style={{ marginLeft: 10 }}>{formatDeadlineDisplay(event.deadline)}</span>}
+            <div className="detail-hero-status">
+              <EventStatusChip status={event.status} />
+              {event.deadline && <span className={`deadline-badge ${deadlineClass}`}>{formatDeadlineDisplay(event.deadline)}</span>}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {onEdit && <button className="secondary-button" onClick={onEdit}>Edit</button>}

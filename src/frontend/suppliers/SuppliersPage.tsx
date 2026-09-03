@@ -6,8 +6,12 @@ import type { Supplier, SupplierInput, SupplierSourceConfiguration, SupplierStat
 import { SupplierDetailsDrawer } from './SupplierDetailsDrawer';
 import { SupplierFormDrawer } from './SupplierFormDrawer';
 import { SupplierSourceDrawer } from './SupplierSourceDrawer';
+import { RowActions } from '../components/RowActions';
+import { StatusChip, type ChipTone } from '../components/StatusChip';
+import { KpiCard } from '../components/KpiCard';
 
 const statusLabels: Record<SupplierStatus, string> = { ACTIVE: 'Active', PENDING: 'Pending', INACTIVE: 'Inactive', BLOCKED: 'Blocked' };
+const statusTones: Record<SupplierStatus, ChipTone> = { ACTIVE: 'success', PENDING: 'warning', INACTIVE: 'neutral', BLOCKED: 'danger' };
 const sourceLabel = (supplier: Supplier) => supplier.sourceType === 'MONDAY_BOARD' ? 'monday board' : supplier.sourceType === 'IMPORT' ? 'Imported' : 'Ariavel';
 
 export function SuppliersPage({ service, capabilities = fullCapabilities }: { service: SupplierService; capabilities?: RuntimeCapabilities }) {
@@ -108,11 +112,11 @@ export function SuppliersPage({ service, capabilities = fullCapabilities }: { se
     {notice ? <div className="notice" role="status">{notice}</div> : null}
     {error ? <div className="error-banner" role="alert">{error}</div> : null}
 
-    <section className="supplier-summary" aria-label="Supplier summary">
-      <Metric label="Total suppliers" value={summary.total} />
-      <Metric label="Active suppliers" value={summary.active} />
-      <Metric label="Preferred suppliers" value={summary.preferred} />
-      <Metric label="Incomplete profiles" value={summary.incomplete} />
+    <section className="kpi-row kpi-row-4" aria-label="Supplier summary">
+      <KpiCard icon="users" label="Total suppliers" value={summary.total} tone="neutral" />
+      <KpiCard icon="check" label="Active suppliers" value={summary.active} tone="success" />
+      <KpiCard icon="trophy" label="Preferred suppliers" value={summary.preferred} tone="info" />
+      <KpiCard icon="clock" label="Incomplete profiles" value={summary.incomplete} tone="warning" />
     </section>
 
     {allSuppliers.length ? <>
@@ -144,8 +148,6 @@ export function SuppliersPage({ service, capabilities = fullCapabilities }: { se
   </div>;
 }
 
-function Metric({ label, value }: { label: string; value: number }) { return <div className="supplier-metric"><span>{label}</span><strong>{value}</strong></div>; }
-
 function SupplierRecords({ suppliers, onView, onEdit, onStatus }: { suppliers: Supplier[]; onView: (s: Supplier) => void; onEdit?: (s: Supplier) => void; onStatus?: (s: Supplier) => void; }) {
   return <section className="supplier-panel">
     <div className="supplier-table-wrap">
@@ -153,18 +155,24 @@ function SupplierRecords({ suppliers, onView, onEdit, onStatus }: { suppliers: S
         <thead><tr><th>Supplier</th><th>Status</th><th>Category</th><th>Country</th><th>Primary contact</th><th>Currency</th><th>Rating</th><th>Source</th><th>Actions</th></tr></thead>
         <tbody>{suppliers.map(supplier => <tr key={supplier.id}>
           <td><button className="supplier-link" onClick={() => onView(supplier)}>{supplier.name}</button><small>{supplier.supplierCode ?? 'No code'} · {supplier.email ?? 'No email'}</small></td>
-          <td><span className={`supplier-status status-${supplier.status.toLowerCase()}`}>{statusLabels[supplier.status]}</span></td>
+          <td><StatusChip label={statusLabels[supplier.status]} tone={statusTones[supplier.status]} /></td>
           <td>{supplier.category ?? '—'}</td>
           <td>{supplier.country ?? '—'}</td>
           <td>{supplier.primaryContactName ?? '—'}</td>
           <td>{supplier.currency ?? '—'}</td>
           <td>{supplier.rating ? `${supplier.rating} / 5` : '—'}</td>
           <td>{sourceLabel(supplier)}</td>
-          <td><div className="row-actions">
-            <button aria-label={`View ${supplier.name}`} onClick={() => onView(supplier)}>View</button>
-            {onEdit && <button aria-label={`Edit ${supplier.name}`} onClick={() => onEdit(supplier)}>Edit</button>}
-            {onStatus && <button aria-label={`${supplier.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${supplier.name}`} onClick={() => onStatus(supplier)}>{supplier.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>}
-          </div></td>
+          <td>
+            <RowActions
+              primaryLabel="View"
+              onPrimary={() => onView(supplier)}
+              ariaLabelSuffix={supplier.name}
+              overflow={[
+                ...(onEdit ? [{ label: 'Edit', onClick: () => onEdit(supplier) }] : []),
+                ...(onStatus ? [{ label: supplier.status === 'ACTIVE' ? 'Deactivate' : 'Activate', onClick: () => onStatus(supplier) }] : []),
+              ]}
+            />
+          </td>
         </tr>)}</tbody>
       </table>
     </div>
@@ -172,7 +180,7 @@ function SupplierRecords({ suppliers, onView, onEdit, onStatus }: { suppliers: S
       <article key={supplier.id} className="supplier-card">
         <div className="supplier-card-head">
           <div><button className="supplier-link" onClick={() => onView(supplier)}>{supplier.name}</button><small>{supplier.supplierCode ?? 'No supplier code'}</small></div>
-          <span className={`supplier-status status-${supplier.status.toLowerCase()}`}>{statusLabels[supplier.status]}</span>
+          <StatusChip label={statusLabels[supplier.status]} tone={statusTones[supplier.status]} />
         </div>
         <dl>
           <div><dt>Category</dt><dd>{supplier.category ?? '—'}</dd></div>
@@ -180,11 +188,15 @@ function SupplierRecords({ suppliers, onView, onEdit, onStatus }: { suppliers: S
           <div><dt>Contact</dt><dd>{supplier.primaryContactName ?? supplier.email ?? '—'}</dd></div>
           <div><dt>Source</dt><dd>{sourceLabel(supplier)}</dd></div>
         </dl>
-        <div className="row-actions">
-          <button aria-label={`View ${supplier.name}`} onClick={() => onView(supplier)}>View</button>
-          {onEdit && <button aria-label={`Edit ${supplier.name}`} onClick={() => onEdit(supplier)}>Edit</button>}
-          {onStatus && <button aria-label={`${supplier.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${supplier.name}`} onClick={() => onStatus(supplier)}>{supplier.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>}
-        </div>
+        <RowActions
+          primaryLabel="View"
+          onPrimary={() => onView(supplier)}
+          ariaLabelSuffix={supplier.name}
+          overflow={[
+            ...(onEdit ? [{ label: 'Edit', onClick: () => onEdit(supplier) }] : []),
+            ...(onStatus ? [{ label: supplier.status === 'ACTIVE' ? 'Deactivate' : 'Activate', onClick: () => onStatus(supplier) }] : []),
+          ]}
+        />
       </article>
     )}</div>
   </section>;

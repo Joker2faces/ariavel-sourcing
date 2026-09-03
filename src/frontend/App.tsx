@@ -189,7 +189,10 @@ export default function App({ supplierService: injSupplier, eventService: injEve
       {showOnboarding && <OnboardingFlow onComplete={dismissOnboarding} onSkip={dismissOnboarding} />}
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark"><Icon name="grid" size={24} /></span><span>Ariavel Sourcing</span></div>
+        <div className="brand">
+          <span className="brand-mark"><Icon name="grid" size={20} /></span>
+          <span className="brand-word"><strong>Ariavel</strong><small>Sourcing</small></span>
+        </div>
         <nav aria-label="Primary navigation">{nav.map(item => <button key={item.label} className={`nav-item ${activeNav === item.label ? 'selected' : ''}`} onClick={() => setActiveNav(item.label)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav>
         <div className="sidebar-footer"><span className="monday-dots">●●●</span><span>Built on monday.com</span></div>
       </aside>
@@ -207,19 +210,10 @@ export default function App({ supplierService: injSupplier, eventService: injEve
           ? <AwardWorkspacePage eventService={services.eventService} apiClient={services.apiClient} serverAvailable={services.serverAvailable} />
           : activeNav === 'Settings' && services
           ? <SettingsPage capabilities={services.capabilities} serverBaseUrl="" serverAvailable={services.serverAvailable} apiClient={services.apiClient} />
-          : <PlaceholderPage title={activeNav} />}
+          : null}
       </main>
     </div>
     </ErrorBoundary>
-  );
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="content-wrap">
-      <div className="page-heading"><div><h1>{title}</h1><p>This section is coming in a future milestone.</p></div></div>
-      <div className="empty-state"><h2>Coming soon</h2><p>{title} will be available in a future milestone.</p></div>
-    </div>
   );
 }
 

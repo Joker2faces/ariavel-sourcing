@@ -7,19 +7,9 @@ import { isClosingSoon, isOverdue, formatDeadlineDisplay } from '../../shared/ut
 import type { BuyerApiClient } from '../api/buyerApiClient';
 import { CreateEventWizard } from './CreateEventWizard';
 import { EventDetailDrawer } from './EventDetailDrawer';
-
-const STATUS_LABEL: Record<SourcingEventStatus, string> = {
-  DRAFT: 'Draft',
-  READY_FOR_INVITATION: 'Ready for Invitation',
-  OPEN: 'Open',
-  EVALUATING: 'Evaluating',
-  AWARDED: 'Awarded',
-  CANCELLED: 'Cancelled',
-};
-
-function EventStatus({ status }: { status: SourcingEventStatus }) {
-  return <span className={`rfq-status rfq-status-${status.toLowerCase().replace(/_/g, '-')}`}>{STATUS_LABEL[status]}</span>;
-}
+import { EVENT_STATUS_LABEL, EventStatusChip } from './eventStatus';
+import { RowActions } from '../components/RowActions';
+import { KpiCard } from '../components/KpiCard';
 
 function DeadlineBadge({ deadline }: { deadline: string | undefined }) {
   if (!deadline) return <span className="deadline-none">—</span>;
@@ -112,8 +102,9 @@ export function SourcingEventsPage({
     return {
       draft: all.filter(e => e.status === 'DRAFT').length,
       ready: all.filter(e => e.status === 'READY_FOR_INVITATION').length,
+      open: all.filter(e => e.status === 'OPEN').length,
+      evaluating: all.filter(e => e.status === 'EVALUATING').length,
       closingSoon: all.filter(e => e.status !== 'CANCELLED' && e.deadline && isClosingSoon(e.deadline, now)).length,
-      cancelled: all.filter(e => e.status === 'CANCELLED').length,
     };
   }, [events]);
 
@@ -129,7 +120,7 @@ export function SourcingEventsPage({
   }
 
   return (
-    <div className="content-wrap rfq-content">
+    <div className="content-wrap rfq-content page-content--wide">
       <div className="page-heading">
         <div>
           <h1>Sourcing Events</h1>
@@ -142,11 +133,12 @@ export function SourcingEventsPage({
         )}
       </div>
 
-      <section className="rfq-summary" aria-label="Event summary">
-        <SummaryCard label="Draft" value={summary.draft} tone="blue" />
-        <SummaryCard label="Ready for Invitation" value={summary.ready} tone="green" />
-        <SummaryCard label="Closing Soon" value={summary.closingSoon} tone="orange" />
-        <SummaryCard label="Cancelled" value={summary.cancelled} tone="grey" />
+      <section className="kpi-row" aria-label="Event summary">
+        <KpiCard icon="clipboard" label="Draft" value={summary.draft} tone="neutral" />
+        <KpiCard icon="check" label="Ready for Invitation" value={summary.ready} tone="info" />
+        <KpiCard icon="grid" label="Open / Awaiting Responses" value={summary.open} tone="info" />
+        <KpiCard icon="clock" label="Closing Soon" value={summary.closingSoon} tone="warning" />
+        <KpiCard icon="trophy" label="Evaluating" value={summary.evaluating} tone="success" />
       </section>
 
       {notice ? <div className="notice" role="status">{notice}</div> : null}
@@ -161,7 +153,7 @@ export function SourcingEventsPage({
           <span>Status</span>
           <select aria-label="Status" value={filterStatus} onChange={e => setFilterStatus(e.target.value as SourcingEventStatus | '')}>
             <option value="">All statuses</option>
-            {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            {Object.entries(EVENT_STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
         <label>
@@ -190,6 +182,10 @@ export function SourcingEventsPage({
         </label>
         <button className="reset-button" onClick={reset}>Reset filters</button>
       </div>
+
+      {!loading && events.length > 0 && (
+        <p className="result-count">{events.length} event{events.length === 1 ? '' : 's'}</p>
+      )}
 
       {loading ? (
         <div className="supplier-skeleton" aria-label="Loading events" aria-busy="true"><div /><div /><div /></div>
@@ -230,23 +226,23 @@ export function SourcingEventsPage({
                   <tr key={event.id}>
                     <td className="rfq-ref">{event.reference}</td>
                     <td><button className="supplier-link" onClick={() => setSelected(event)}>{event.title}</button>{event.category && <small>{event.category}</small>}</td>
-                    <td><EventStatus status={event.status} /></td>
+                    <td><EventStatusChip status={event.status} /></td>
                     <td><DeadlineBadge deadline={event.deadline} /></td>
-                    <td>{event.lines.length}</td>
-                    <td>{event.supplierSelections.length}</td>
+                    <td className="num">{event.lines.length}</td>
+                    <td className="num">{event.supplierSelections.length}</td>
                     <td>{event.currency}</td>
                     <td>{event.ownerName ?? event.ownerUserId}</td>
                     <td>{formatDeadlineDisplay(event.updatedAt)}</td>
                     <td>
-                      <div className="row-actions">
-                        <button aria-label={`Open ${event.reference}`} onClick={() => setSelected(event)}>Open</button>
-                        {canEdit && event.status !== 'CANCELLED' && (
-                          <button aria-label={`Edit ${event.reference}`} onClick={() => setEditingEvent(event)}>Edit</button>
-                        )}
-                        {canEdit && event.status !== 'CANCELLED' && (
-                          <button aria-label={`Cancel ${event.reference}`} onClick={() => void handleCancel(event)}>Cancel</button>
-                        )}
-                      </div>
+                      <RowActions
+                        primaryLabel="Open"
+                        onPrimary={() => setSelected(event)}
+                        ariaLabelSuffix={event.reference}
+                        overflow={canEdit && event.status !== 'CANCELLED' ? [
+                          { label: 'Edit', onClick: () => setEditingEvent(event) },
+                          { label: 'Cancel event', onClick: () => void handleCancel(event), danger: true },
+                        ] : []}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -262,7 +258,7 @@ export function SourcingEventsPage({
                     <button className="supplier-link" onClick={() => setSelected(event)}>{event.title}</button>
                     <small>{event.reference}{event.category ? ` · ${event.category}` : ''}</small>
                   </div>
-                  <EventStatus status={event.status} />
+                  <EventStatusChip status={event.status} />
                 </div>
                 <dl>
                   <div><dt>Deadline</dt><dd><DeadlineBadge deadline={event.deadline} /></dd></div>
@@ -270,15 +266,15 @@ export function SourcingEventsPage({
                   <div><dt>Lines</dt><dd>{event.lines.length}</dd></div>
                   <div><dt>Suppliers</dt><dd>{event.supplierSelections.length}</dd></div>
                 </dl>
-                <div className="row-actions">
-                  <button aria-label={`Open ${event.reference}`} onClick={() => setSelected(event)}>Open</button>
-                  {canEdit && event.status !== 'CANCELLED' && (
-                    <button aria-label={`Edit ${event.reference}`} onClick={() => setEditingEvent(event)}>Edit</button>
-                  )}
-                  {canEdit && event.status !== 'CANCELLED' && (
-                    <button aria-label={`Cancel ${event.reference}`} onClick={() => void handleCancel(event)}>Cancel</button>
-                  )}
-                </div>
+                <RowActions
+                  primaryLabel="Open"
+                  onPrimary={() => setSelected(event)}
+                  ariaLabelSuffix={event.reference}
+                  overflow={canEdit && event.status !== 'CANCELLED' ? [
+                    { label: 'Edit', onClick: () => setEditingEvent(event) },
+                    { label: 'Cancel event', onClick: () => void handleCancel(event), danger: true },
+                  ] : []}
+                />
               </article>
             ))}
           </div>
@@ -306,15 +302,6 @@ export function SourcingEventsPage({
           }}
         />
       )}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className="summary-card">
-      <span>{label}</span>
-      <strong className={tone}>{value}</strong>
     </div>
   );
 }
