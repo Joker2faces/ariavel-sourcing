@@ -85,18 +85,21 @@ frame-src 'none'
 object-src 'none'
 base-uri 'self'
 form-action 'self'
+frame-ancestors https://*.monday.com
 ```
 
 `crossOriginEmbedderPolicy` is disabled — required for monday.com iframe embedding.
+
+`frame-ancestors https://*.monday.com` is what actually allows monday.com to embed this app in an iframe. This was missing for most of the project's life — Helmet's default `X-Frame-Options: SAMEORIGIN` was still active with no CSP override, which would have silently blocked the app from ever rendering inside monday in production. Fixed by disabling Helmet's `frameguard` middleware (which only ever sets `X-Frame-Options`) and relying on the CSP directive instead, which modern browsers honor over `X-Frame-Options` anyway.
 
 ---
 
 ## Transport Security
 
 - All traffic in production uses HTTPS (enforced by monday.com hosting)
-- CORS: `origin: false` — blocks cross-origin browser requests
+- CORS: `origin: false` — correct because the frontend is served from the same Express app/origin as the API (see Architecture: same-origin hosting); a separately-hosted frontend would need this relaxed, but there isn't one
 - `X-Content-Type-Options: nosniff` via Helmet defaults
-- `X-Frame-Options: SAMEORIGIN` via Helmet (overridden to allow monday iframe)
+- `X-Frame-Options` is NOT sent (Helmet's `frameguard` is disabled) — framing policy is enforced entirely via the CSP `frame-ancestors` directive above
 
 ---
 

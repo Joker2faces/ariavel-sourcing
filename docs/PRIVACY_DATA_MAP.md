@@ -14,12 +14,15 @@ Ariavel Sourcing stores data scoped strictly to each monday.com account (tenant)
 |---|---|---|---|
 | Supplier | id, name, email, phone, country, category, status, mondayItemId, tags, notes | monday Storage API (per tenant) | Until deleted by buyer |
 | Sourcing Event | id, reference, title, description, currency, deadline, status, lines[], supplierSelections[] | monday Storage API (per tenant) | Until deleted by buyer |
-| Invitation | id, tenantId, eventId, supplierId, supplierNameSnapshot, supplierEmailSnapshot, status, portalToken hash | In-memory / monday Code | Session lifetime |
-| Quote | id, tenantId, invitationId, line items, total, currency, notes | In-memory / monday Code | Session lifetime |
-| Bid Comparison | id, tenantId, eventId, normalized quotes | In-memory / monday Code | Session lifetime |
-| Award Scenario | id, tenantId, eventId, line allocations | In-memory / monday Code | Session lifetime |
-| Document | id, tenantId, eventId, filename, size, mime type, content (base64) | In-memory / monday Code | Session lifetime |
-| Audit Log | action, actorId, tenantId, timestamp, details | In-memory / monday Code | Session lifetime |
+| Invitation | id, tenantId, eventId, supplierId, supplierNameSnapshot, supplierEmailSnapshot, status, tokenHash | monday Code Document DB (`supplier_invitations`) | Until buyer deletes tenant data |
+| Quote | id, tenantId, invitationId, line items, total, currency, notes | monday Code Document DB (`supplier_quotes`) | Until buyer deletes tenant data |
+| Bid Comparison | id, tenantId, eventId, normalized quotes | monday Code Document DB (`comparison_snapshots`) | Until buyer deletes tenant data |
+| Award Scenario | id, tenantId, eventId, line allocations | monday Code Document DB (`award_scenarios`) | Until buyer deletes tenant data |
+| Attachment metadata | id, tenantId, entityId, filename, size, mime type, object key | monday Code Document DB (`attachments`); file bytes in monday Object Storage | Until buyer deletes the attachment or tenant data |
+| Tenant Settings | organization/sourcing/comparison/security config | monday Code Document DB (`tenantSettings`) | Until buyer deletes tenant data |
+| Audit Log | action, actorId, tenantId, eventId, timestamp, metadata | monday Code Document DB (`audit_events`) | Retained indefinitely, including after a tenant data deletion — see Data Deletion below |
+
+Before monday Code provisions the Document DB / Object Storage bucket (or in local development and automated tests), the above fall back to in-memory storage that resets on restart — this is a deliberate, non-production-only behavior, not a data-loss risk for real tenants.
 
 ### Supplier Portal Data (External)
 
@@ -69,11 +72,12 @@ Data is stored in monday Storage API, which follows monday.com's data residency 
 
 ---
 
-## Data Deletion
+## Data Export & Deletion
 
-- Buyers can delete suppliers via the Supplier Master UI
-- Buyers can cancel sourcing events (data retained for audit)
-- Full tenant data removal requires contacting support (monday Storage API purge)
+- Buyers can delete individual suppliers via the Supplier Master UI, and cancel sourcing events (data retained for audit)
+- **Settings → Data & Privacy → Export data**: downloads a JSON file of every invitation, quote, comparison, award, attachment record, setting, and audit event Ariavel stores for the tenant. Never includes `tokenHash` or any secret.
+- **Settings → Data & Privacy → Delete all tenant data**: permanently deletes everything above (requires typing the exact confirmation phrase "DELETE MY TENANT DATA"). `audit_events` is deliberately NOT deleted — a minimal accountability record (that the deletion happened, when, by whom) is retained, which is standard practice for erasure requests. This never touches monday.com boards/items — those remain the tenant's own data, managed through monday itself.
+- Both actions require a real Document DB connection (they operate directly on monday Code's MongoDB) and are not available against the in-memory dev fallback, which has no persistent data to export or delete in the first place.
 
 ---
 
@@ -98,5 +102,5 @@ No cookies are set by the app.
 - Data minimisation: only supplier contact fields required for procurement are collected
 - Purpose limitation: data used only for sourcing workflow within the tenant
 - Access control: all data gated by monday.com JWT (account-level auth)
-- Right to erasure: buyer can delete supplier records; full purge available on request
+- Right to erasure: buyer can delete individual supplier records, or self-service delete all Ariavel-owned tenant data from Settings → Data & Privacy (see Data Export & Deletion above)
 - Data processor: Ariavel acts as processor; monday.com account holder is controller

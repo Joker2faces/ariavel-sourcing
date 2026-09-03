@@ -2,7 +2,7 @@
 
 ## Goal
 
-Ariavel Sourcing helps procurement teams compare supplier quotations correctly without rebuilding another Excel spreadsheet. It will grow toward RFQs, supplier responses, normalized bid matrices, commercial terms, supplier evaluation and award decisions.
+Ariavel Sourcing helps procurement teams compare supplier quotations correctly without rebuilding another Excel spreadsheet. As of this Release Candidate, the full loop is built: RFQs, secure supplier invitations and a public portal, quote submission, normalized bid matrices with landed cost, award scenarios (including split awards), and document/Excel exchange with suppliers — all described milestone by milestone below.
 
 ## Milestone 1 boundary
 
@@ -52,3 +52,31 @@ Milestone 4 replaces the M1 mock hub with a complete procurement event workflow.
 - **Persistence**: `monday.storage` global scope, `ariavel:sourcing-event:*` namespace, optimistic concurrency (see ADR-002)
 
 Milestone 4 does not collect supplier quotations, normalize bids, calculate landed cost, create awards, or integrate with ERPs.
+
+## Milestone 5 — Supplier Invitations & Portal
+
+Buyers generate a secure, single-use invitation per supplier from a sourcing event (a cryptographically random 256-bit token, hashed with SHA-256 before storage — the raw token is returned exactly once and never persisted or logged). Delivery is deliberately manual, not automated email: the buyer gets a "Link generated — not automatically sent" banner with Copy link, Copy invitation message (a ready-to-paste templated message), and an Open email draft (`mailto:`) action. Invitations progress `CREATED → OPENED → SUBMITTED`, or `REVOKED`/`EXPIRED`; regenerating a token immediately invalidates the previous one.
+
+Suppliers open their invitation at a public portal URL with no monday account required. They see only their own RFQ snapshot, their own quote, and public buyer/company information — never other suppliers, other RFQs, or internal buyer notes. They can save a draft quote (line prices, currency, lead time, MOQ, no-bid per line, commercial terms) and reload it later; submission is one-way and makes the quote immutable evidence for the comparison stage.
+
+## Milestone 6 — Bid Intelligence
+
+Once suppliers submit quotes, the buyer builds a comparison snapshot: pick a base currency, a freight allocation policy (proportional to line value / equal per line / manual), and manual FX rates for every currency quoted. The snapshot is immutable once built — rebuilding creates a new snapshot rather than mutating history, so a later FX change never silently recalculates a comparison someone already acted on. Per line, per supplier: normalized unit price, landed cost (price + freight + duty + handling − discount), and exception flags (no-bid, missing price, MOQ exceeds request, partial quantity, late delivery, long lead time, missing commercial terms, expired quote validity). The Bid Matrix renders this as a sticky-header, internally-scrollable comparison table on the event's Comparison tab.
+
+## Milestone 7 — Award Workspace
+
+From a comparison snapshot, the buyer creates an award scenario — either a recommendation (lowest landed cost per line, computed deterministically) or a blank one built up manually. Per line, the buyer awards to a supplier; overriding the lowest-cost bidder requires a written reason. A line can be split across multiple suppliers (the combined quantity is validated against what was requested), and a line with zero bidders can be explicitly marked no-award so the scenario can still be finalized. Finalizing is a one-way transition to an immutable award record with total cost, savings vs. target, and supplier concentration.
+
+## Milestone 8 — Documents & Quote Ingestion
+
+RFQ and quote attachments are stored via monday's real Object Storage (presigned upload URLs, size/MIME/magic-byte validation, 25 MB limit, server-generated object keys — never the raw filename or a user-supplied path). Downloads are proxied through an authenticated backend route (the platform has no presigned-GET equivalent), scoped so a supplier can only ever reach their own event's RFQ attachments or their own quote attachments. Suppliers can also download a CSV quote template pre-filled with the RFQ's lines, fill it offline, and import it back — validated against the RFQ's actual line IDs, always landing as a DRAFT, never auto-submitting.
+
+## Milestone 9 — Release Candidate
+
+Onboarding wizard (persisted per-tenant, not just per-browser), a fully backend-persisted Settings page (organization, sourcing defaults, comparison policy, security policy — with optimistic-concurrency conflict detection), a React error boundary, and the security hardening described in `docs/SECURITY_OVERVIEW.md`.
+
+## Final Release Candidate Completion Pass
+
+A truth audit against the actual running app (not just tests, which can pass against components that are never wired into the real UI) found and fixed several completeness gaps before this could genuinely be called release-ready: the buyer app never actually called its own backend (no session-token retrieval existed, and there was no same-origin story for reaching it); Object Storage was a hardcoded fake URL with no download route; split award was coded as a comment ("split comes later") rather than actually working; the Bid Matrix and the entire Award Workspace were built but unreachable from the UI; the audit log could be written but never read. All of these are now real. See `docs/PROJECT_STATE.md` for the full list and `docs/RELEASE_CHECKLIST.md` for current test/quality-gate results.
+
+Tenant data export and self-service deletion were also added — previously the only path was "contact support."

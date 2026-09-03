@@ -1,94 +1,79 @@
 # Project State
 
 ## Current Phase
-M9 — Release Candidate (complete)
 
-## Branch Stack
-```
-main (never merged into)
-  └── feature/m2-supplier-master
-        └── feature/m3-sourcing-events
-              └── feature/m4-sourcing-events
-                    └── feature/m5-supplier-portal
-                          └── feature/m6-bid-intelligence
-                                └── feature/m7-award-scenarios
-                                      └── feature/m8-document-management
-                                            └── feature/release-candidate  ← current branch
-```
+Final Release Candidate completion pass (post-M9). No further milestones planned — this is the terminal engineering phase before Marketplace submission.
 
-## Latest Commit
-`2751a81a55e4fcda611052edf5ba3959916266d3` — fix(build): stop tracking compiled dist-server output
+## Branch
 
-## Working Tree State
-Clean (tracked files). Two untracked local-only files present (not committed): `code.tar.gz` (a prior packaging artifact) and `security-scan-17506248-*.json` (an earlier empty scan result), both harmless and left in place.
+`feature/release-candidate`
 
-## Test Results (Fresh Run — 2026-09-03, post-secret-configuration)
-- **338 tests, 28 test files, all passing**
-- `npx tsc --noEmit -p tsconfig.app.json` — 0 errors
-- `npx tsc --noEmit -p tsconfig.server.json` — 0 errors
-- `npm run lint` — 0 errors (previously 24 false-positive errors from linting committed `dist-server/` output; fixed by untracking it and excluding it in `eslint.config.js`)
-- `npm run build` — clean (259.55 kB JS / 41.14 kB CSS)
-- `npm run build:server` — clean
+## Test Results (Fresh Run — 2026-09-03)
+
+- **414 tests, 39 test files, all passing**
+- `npm run build` (`tsc -b && vite build`) — clean
+- `npm run build:server` (`tsc -p tsconfig.server.json`) — clean
+- `npm run lint` — 0 errors
 - `git diff --check` — clean
-- `npm audit` — **could not run**: npm registry is configured to `registry.npmmirror.com`, which returns `501 NOT_IMPLEMENTED` for the audit endpoint. Not fixed (registry config is an environment choice, not touched without explicit instruction).
-- Secret scan (tracked files, dist/, dist-server/): no literal secret values found; only `process.env['MONDAY_CLIENT_SECRET']` / `MONDAY_SIGNING_SECRET` name references.
+- `npm audit --registry=https://registry.npmjs.org/` (one-shot override; the configured mirror registry doesn't implement the audit endpoint) — 13 advisories, all in dev-only tooling (`vite`/`vitest`/`esbuild`, used only by `npm test`/`npm run dev`) or deep inside `@mondaycom/apps-sdk`'s own Google Cloud dependency chain (`uuid`, `google-gax`) — nothing in the app's own runtime request path. Not force-fixed; see Known Limitations.
+- Secret scan (tracked files, `dist/`, `dist-server/`): no literal secret values anywhere — only `process.env['MONDAY_CLIENT_SECRET']` / `MONDAY_SIGNING_SECRET` name references.
 
-## What Was Built (M9)
+## What Changed In This Pass
 
-### Frontend
-- `src/frontend/ErrorBoundary.tsx` — React class error boundary, structured JSON error logging
-- `src/frontend/onboarding/OnboardingFlow.tsx` — 4-step first-run wizard (localStorage-keyed)
-- `src/frontend/settings/SettingsPage.tsx` — Full 6-section settings: Organization, Sourcing, Comparison, Security, Data & Privacy, Billing
-- `src/frontend/styles.css` — Design system tokens + dark theme + responsive breakpoints
-- `src/frontend/App.tsx` — ErrorBoundary wrapper, OnboardingFlow (Monday-only), onboarding skipped in test/dev mode
+This pass audited the actual runtime behavior of everything M1–M9 claimed as "done" against what the code does, and fixed what didn't hold up. In order of how they were found:
 
-### Backend
-- `src/server/middleware/requestId.ts` — X-Request-ID on every response
-- `src/server/middleware/noSqlInjection.ts` — Blocks `$`-prefix operator keys in request body
-- `src/server/app.ts` — Strict CSP via Helmet, 256 KB body limit, enhanced /health endpoint
-- `src/backend/entitlement/entitlementService.ts` — Feature gate abstraction (dev: all enabled)
-
-### Tests
-- `tests/tenantIsolation.test.ts` — 12 security tests (cross-tenant isolation, NoSQL injection, CSP, X-Request-ID, body size)
-- `tests/masterE2E.test.ts` — 29-step end-to-end scenario covering full lifecycle
-
-### Documentation
-- `docs/MARKETPLACE_READINESS.md`
-- `docs/SECURITY_OVERVIEW.md`
-- `docs/PRIVACY_DATA_MAP.md`
-- `docs/SUPPORT_RUNBOOK.md`
-- `docs/USER_GUIDE.md`
-- `docs/INSTALLATION_GUIDE.md`
-- `docs/RELEASE_CHECKLIST.md`
-- `docs/MONETIZATION_PLAN.md`
+1. **`mapps` CLI was non-functional** — every invocation failed on an `update-notifier` config-store permission error. Fixed with `NO_UPDATE_NOTIFIER=1` and invoking `node bin/run.js` directly instead of through `npx`, bypassing the broken update check entirely — no OS permission changes needed. The CLI is confirmed fully working (verified `app:list`, `app-version:list`, `app-features:list`).
+2. **`dist-server/` (compiled output) was committed to git** and linted by ESLint (24 false-positive errors). Untracked, gitignored, excluded from ESLint.
+3. **Object Storage was a complete stub** — `initiateUpload` returned a hardcoded fake URL, there was no download route, and the portal (supplier) document router existed but was never mounted and referenced a `req.portalTenantId` no middleware ever set. Replaced with a real `@mondaycom/apps-sdk` `ObjectStorage` adapter (selected via `OBJECT_STORAGE_BUCKET`, same pattern as Document DB) with an in-memory dev fallback; added the missing download routes; rewrote the portal router to use token-based auth like the rest of the portal API; mounted it.
+4. **The buyer-facing app never actually called its own backend.** `createBuyerApiClient` was defined but never instantiated in `App.tsx` — `apiClient` was hardcoded `null` everywhere, so invitations/quotes/comparisons were silently no-ops in the real running app (tests passed because they inject a client directly into components, bypassing `App.tsx`). Root cause: no `monday.get("sessionToken")` call existed anywhere in the frontend, and there was no same-origin story for reaching the backend. Fixed: added `getSessionToken()` to the monday runtime adapter, made the server serve the built frontend from the same origin (`app.ts` now serves `./dist` with an SPA fallback), and wired a real `BuyerApiClient` into `App.tsx`.
+5. **Helmet's default `X-Frame-Options: SAMEORIGIN`** was still active with no CSP `frame-ancestors` — since monday.com embeds this app in an iframe from a different origin, this would have silently blocked the app from ever rendering in production. Fixed (`frameguard: false` + `frame-ancestors https://*.monday.com`).
+6. **Tenant Settings had zero backend persistence** — the Settings UI was pure local `useState`, resetting on every reload. Built a full Mongo-backed (+ in-memory dev fallback) `TenantSettingsRepository`/service/routes with optimistic-concurrency version checks, and wired the UI to it.
+7. **Split award was never actually implemented** despite the M7 commit message — `awardService.awardLine` replaced a line's allocations wholesale, with a code comment admitting "split comes later." Implemented real per-supplier upsert allocation, `removeLineAllocation`, and `markNoAward` (a line with zero bidders had no way to leave PENDING before finalizing).
+8. **Bid Matrix and the entire Award Workspace were unreachable in the UI** — `BidMatrix.tsx` was a fully-built component never rendered anywhere, and the "Awards" nav item rendered a generic "Coming soon" placeholder despite the backend being fully built and tested. Built `ComparisonPanel.tsx` (new "Comparison" tab on the event drawer) and `AwardWorkspacePage.tsx` (replaces the Awards placeholder).
+9. **Audit log was write-only** — no read endpoint, no export, no UI, despite docs claiming an "audit log" feature. Added `eventId` to every audit call site, a query API, CSV export, and an "Activity" tab.
+10. **Invitation delivery UX** relabeled from "Send invitation" (implied automated email) to "Generate invitation link," with an explicit "Link generated — not automatically sent" banner, copy-message and mailto actions.
+11. **No status-freshness mechanism** — added manual refresh + 20s visibility-aware polling on the invitations panel.
+12. **Tenant data export/deletion did not exist** (`PRIVACY_DATA_MAP.md` admitted "requires contacting support"). Implemented both, gated behind a typed confirmation phrase for deletion, with `audit_events` deliberately preserved through a deletion as the compliance record.
+13. Found and fixed a **shared-mutable-state bug** in four in-memory repositories (award/quote/comparison/settings): a shallow `{ ...doc }` copy left nested arrays/objects shared by reference with the stored document, so an unrelated later write could silently mutate an object a caller already held. Fixed with `structuredClone`. Never affected the Mongo-backed repos (each read deserializes fresh).
 
 ## Deployment State
-- **MONDAY_CLIENT_SECRET:** Configured by owner (2026-09-03). Value never retrieved/printed by this session.
-- **`mapps` CLI:** **Non-functional in this environment.** Every invocation (`app:list`, `--help`, even bare `mapps`) fails silently — `~/.config/configstore` is access-denied to the current OS user (`icacls` also returns "Access is denied" on it), so the CLI cannot read/write its auth/config store. This blocked all of: verifying the current draft App Version ID, listing app features, and redeploying server/client code to monday Code. Not resolved — fixing OS-level ownership/permissions on that directory requires elevated access this session did not attempt (privilege escalation is out of scope without explicit user instruction).
-- **Frontend:** Not deployed this session (blocked by the CLI issue above, in addition to the pre-existing Developer Center stop condition).
-- **Backend (monday Code):** Not redeployed this session (same CLI blocker). Last known deployed server build predates `MONDAY_CLIENT_SECRET` being set, so the running instance (if any) will still 503 buyer routes until redeployed.
-- **Marketplace:** Not submitted (owner action — STOP CONDITION, unchanged).
 
-## Manual Blockers (Genuine Owner Action Required)
-1. **Fix `mapps` CLI access** — grant the current Windows user ownership/permissions on `C:\Users\thodo\.config\configstore` (or reset/relocate that config store), then re-run `mapps app:list` to confirm auth still holds.
-2. **monday Code server redeploy** — once the CLI works, push server code to the current draft so the runtime picks up `MONDAY_CLIENT_SECRET`.
-3. **monday Code frontend redeploy** — push `./dist` to the same draft.
-4. **App listing** — Screenshots, description, icon
-5. **Legal** — Privacy policy URL, Terms of service URL
-6. **Monetization** — Decide free vs. paid before submission (see MONETIZATION_PLAN.md)
-7. **Marketplace submission** — Click Submit in Developer Center
+- **MONDAY_CLIENT_SECRET:** Configured by owner (2026-09-03). Value never retrieved/printed by this session.
+- **`mapps` CLI:** Working (see fix above). App ID `12049778` ("Ariavel Sourcing"), current draft `17506248` (status: `draft`, single-region), feature `123330040` ("Ariavel Sourcing Hub", `AppFeatureObject`, active) — all confirmed via authenticated CLI, no duplicates.
+- **Frontend/Backend hosting:** now unified — see architecture change above. Going forward, deploy the whole project (built `dist/` + `dist-server/` + source) as ONE server-side `mapps code:push` to the draft; the separate `--client-side` CDN push used for M2–M5 is retired.
+- See the end-of-session deployment log below (if this session performed one) for the current server/CDN URLs and health status.
 
 ## Security Architecture
-- JWT auth: `{ dat: { account_id, user_id } }` signed with `MONDAY_CLIENT_SECRET`
-- Tenant ID: `monday-account-{account_id}` — derived from JWT only
-- NoSQL injection: `noSqlInjectionMiddleware` blocks `$`-prefix keys
-- Body size: 256 KB hard limit
-- CSP: `default-src 'self'`, `frame-src 'none'`, `object-src 'none'`
-- Rate limits: 200 req/min buyers, 60 req/min portal
-- Request tracing: X-Request-ID on every response
 
-## Known Technical Debt (Post-M9)
-1. Invitations/quotes/comparisons/awards are in-memory — reset on server restart
-2. Email delivery for portal links is not implemented
-3. Audit log export (CSV) not implemented
-4. No real-time quote status push
+- JWT auth: `{ dat: { account_id, user_id } }` signed with `MONDAY_CLIENT_SECRET`, verified via `monday.get("sessionToken")` client-side / `jsonwebtoken.verify` server-side
+- Tenant ID: `monday-account-{account_id}` — derived from JWT only, never from body/query/params
+- `MONDAY_SIGNING_SECRET`: defined (`verifyMondaySignedRequest`) but not yet wired to any route — no monday-originated webhook exists yet to verify. Introduce only when one is actually added.
+- NoSQL injection: `noSqlInjectionMiddleware` blocks `$`-prefix / dotted keys
+- Body size: 256 KB hard limit; file uploads: 25 MB, MIME allowlist + magic-byte + dangerous-extension checks
+- CSP: `default-src 'self'`, `frame-ancestors https://*.monday.com` (required for monday to embed the app), `frame-src 'none'`, `object-src 'none'`
+- CORS: `origin: false` — correct now that frontend and backend are same-origin
+- Rate limits: 200 req/min buyers, 60 req/min portal
+- Request tracing: `X-Request-ID` on every response
+
+## Persistence (production, when `MNDY_MONGODB_CONNECTION_STRING` is set)
+
+| Entity | Collection | In-memory fallback used only when |
+|---|---|---|
+| Supplier invitations | `supplier_invitations` | Mongo not connected |
+| Supplier quotes | `supplier_quotes` | Mongo not connected |
+| Comparison snapshots | `comparison_snapshots` | Mongo not connected |
+| Award scenarios | `award_scenarios` | Mongo not connected |
+| Attachment metadata | `attachments` | Mongo not connected |
+| Tenant settings | `tenantSettings` | Mongo not connected |
+| Audit events | `audit_events` | Mongo not connected |
+| Attachment file bytes | monday Object Storage (`OBJECT_STORAGE_BUCKET`) | bucket not provisioned yet |
+
+None of these use in-memory storage in production — the fallback exists only for local dev, tests, and the first-boot window before monday Code provisions the Document DB / bucket.
+
+## Known Limitations (Genuine, Not Owner-Fixable By This Session)
+
+1. **No optimistic concurrency on quotes/comparisons/award-line edits** (settings and award finalization do have version/state guards). Quotes and comparisons are effectively single-writer in practice (a supplier writes only their own quote; comparisons are buyer-only within one tenant), so the risk is low, but it is not enforced. A future pass should add the same version-check pattern already used for tenant settings.
+2. **No per-RFQ automated "line has zero bidders" detection beyond the manual "Mark as no-award" button** — a buyer must notice and click it; nothing surfaces it proactively.
+3. **`npm audit` advisories** in `vite`/`vitest`/`esbuild` (dev-only) and deep in `@mondaycom/apps-sdk`'s own dependency chain — not fixable from this repo without either a breaking `vitest` major bump or an upstream SDK release.
+4. **Uninstall/deauthorization webhook** is not implemented — `MONDAY_SIGNING_SECRET` verification exists as a utility function but nothing calls it yet, per the instruction to only wire it when a real signed-request path is added.
+5. **Full visual design system audit / dark-theme pass across every new screen** (Comparison tab, Award Workspace, Activity tab, Settings Data & Privacy) was done functionally but not verified pixel-by-pixel in a live browser at every breakpoint — see the final report's UX section for what was and wasn't checked.
