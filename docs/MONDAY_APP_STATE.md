@@ -28,6 +28,20 @@ This file records non-secret Developer Center metadata for development safety. V
 | Source archive | `.../source/13296729.zip` |
 | Security scan | Passed |
 
+### Milestone 4 (2026-09-03)
+
+| Field | Value |
+| --- | --- |
+| Deployment date | 2026-09-03 |
+| CLI version | `@mondaycom/apps-cli` 4.10.8 |
+| Command | `mapps code:push --client-side -s -d ./dist -i 17506248` |
+| CDN URL | `https://v0db73a92e586e9b83ce92ef3094ca4eb.cdn2.monday.app` |
+| Source archive | `https://v0db73a92e586e9b83ce92ef3094ca4eb.cdn2.monday.app/source/13298105.zip` |
+| Security scan | Passed (`-s` flag used) |
+| Build size | 238.90 kB JS / 24.11 kB CSS |
+| Tests at deploy | 162/162 passing (16 files) |
+| Feature binding | Bound to feature `123330040` via Developer Center |
+
 ### Milestone 3 (2026-09-03)
 
 | Field | Value |
