@@ -1,7 +1,9 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import fs from 'fs';
 import { createApp } from '../src/server/app';
 import { createInvitationService } from '../src/server/services/invitationService';
 import { createQuoteService } from '../src/server/services/quoteService';
@@ -44,6 +46,61 @@ describe('Server API', () => {
       const res = await request(app).get('/health');
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('ok');
+    });
+  });
+
+  describe('monday iframe embedding', () => {
+    it('does not send X-Frame-Options (would block monday.com framing this app)', async () => {
+      const { app } = makeApp();
+      const res = await request(app).get('/health');
+      expect(res.headers['x-frame-options']).toBeUndefined();
+    });
+
+    it('allows framing by monday.com via CSP frame-ancestors', async () => {
+      const { app } = makeApp();
+      const res = await request(app).get('/health');
+      expect(res.headers['content-security-policy']).toContain('frame-ancestors https://*.monday.com');
+    });
+  });
+
+  describe('static frontend serving (same-origin with the API)', () => {
+    const distDir = path.resolve(process.cwd(), 'dist');
+    const indexPath = path.join(distDir, 'index.html');
+    let createdFixture = false;
+
+    beforeEach(() => {
+      if (!fs.existsSync(indexPath)) {
+        fs.mkdirSync(distDir, { recursive: true });
+        fs.writeFileSync(indexPath, '<!doctype html><html><body>test</body></html>');
+        createdFixture = true;
+      }
+    });
+
+    afterEach(() => {
+      if (createdFixture) {
+        fs.rmSync(indexPath, { force: true });
+        createdFixture = false;
+      }
+    });
+
+    it('serves index.html at the root', async () => {
+      const { app } = makeApp();
+      const res = await request(app).get('/');
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/html');
+    });
+
+    it('falls back to index.html for unknown SPA routes, but not for /api or /health', async () => {
+      const { app } = makeApp();
+      const spa = await request(app).get('/sourcing-events/some-id');
+      expect(spa.status).toBe(200);
+      expect(spa.headers['content-type']).toContain('text/html');
+
+      const health = await request(app).get('/health');
+      expect(health.body.status).toBe('ok');
+
+      const api = await request(app).get('/api/buyer/events/x/invitations');
+      expect(api.status).toBe(401); // reaches the auth middleware, not the SPA fallback
     });
   });
 

@@ -34,6 +34,7 @@ function makeRuntime(): { runtime: MondayRuntimeAdapter; storage: ReturnType<typ
   const runtime: MondayRuntimeAdapter = {
     mode: RuntimeMode.MONDAY,
     getContext: vi.fn(),
+    getSessionToken: vi.fn(),
     api: vi.fn(),
     storage,
   };

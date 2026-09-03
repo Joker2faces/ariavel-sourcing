@@ -33,6 +33,8 @@ export interface StorageSetResult {
 export interface MondayRuntimeAdapter {
   readonly mode: RuntimeMode;
   getContext(): Promise<AppFeatureObjectContext>;
+  /** monday.get("sessionToken") — a short-lived JWT verified server-side against MONDAY_CLIENT_SECRET. */
+  getSessionToken(): Promise<string>;
   api(query: string, variables?: Record<string, unknown>): Promise<unknown>;
   storage: {
     getItem(key: string): Promise<StorageGetResult>;
@@ -73,6 +75,11 @@ export function createMondayRuntimeAdapter(): MondayRuntimeAdapter {
     async getContext(): Promise<AppFeatureObjectContext> {
       const result = await sdk.get('context');
       return result.data as AppFeatureObjectContext;
+    },
+
+    async getSessionToken(): Promise<string> {
+      const result = await sdk.get('sessionToken');
+      return result.data as string;
     },
 
     async api(query: string, variables?: Record<string, unknown>): Promise<unknown> {
