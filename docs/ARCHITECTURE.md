@@ -40,8 +40,24 @@ Column compatibility, mapping validation and preview transformation live in `src
 
 `transformMondayItemToInput` normalises status aliases (Approved/Enabled → ACTIVE, Onboarding/New → PENDING, Disabled/Archived → INACTIVE, Suspended/Banned → BLOCKED), boolean columns (true/yes/1/checked → true), integer ratings (1–5 only), and emits `SourceWarning` for values that cannot be mapped cleanly. Items without a resolved name are skipped with a warning.
 
+## Sourcing Event domain (Milestone 4)
+
+`SourcingEvent` is the core procurement workflow entity. Each event carries identity fields (`id`, `tenantId`, `reference`, `title`, `currency`), lifecycle status, an ordered array of `SourcingLine` items, an array of `SourcingSupplierSelection` snapshots capturing supplier state at selection time, deadline/delivery dates, notes, owner, and audit timestamps.
+
+`SourcingEventStatus` lifecycle: `DRAFT → READY_FOR_INVITATION | CANCELLED`; `READY_FOR_INVITATION → DRAFT | CANCELLED`; `CANCELLED` is terminal. `changeStatus` to `READY_FOR_INVITATION` runs `validateReadyForInvitation` first (requires title, reference, currency, ≥1 line, ≥1 supplier).
+
+References follow the format `RFQ-YYYY-XXXXX` with 5 characters from an unambiguous charset (`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`) — no sequential counter, no monotonic dependency.
+
+`SourcingEventRepository` mirrors the supplier repository interface contract. `MondayStorageSourcingEventRepository` uses a separate key namespace (`ariavel:sourcing-event:*`) from suppliers, with the same optimistic concurrency pattern. See ADR-002 for the storage rationale and migration trigger conditions.
+
+`SourcingEventService` provides: `list(filters)`, `get`, `getSummary`, `generateReference`, `create`, `update`, `changeStatus`, `addLine`, `updateLine`, `removeLine`, `duplicateLine`, `listEligibleSuppliers` (ACTIVE only), `buildSupplierSelection`, `validateReady`, `duplicate`.
+
+`SourcingEventsPage` renders summary cards, a searchable/filterable desktop table and responsive mobile cards, a multi-step Create/Edit Wizard (Details → Line Items → Suppliers → Review), and an `EventDetailDrawer` with tabbed Overview/Lines/Suppliers view.
+
+The Create Event Wizard uses `useReducer` for state management. Step 1 validates reference/title/currency before advancing. Step 2 manages line items with add/remove/duplicate. Step 3 loads `listEligibleSuppliers()` on mount, filtered to ACTIVE only. Step 4 shows a full review with `validateReadyForInvitation` preview errors and email-missing warnings.
+
 ## Future adapters
 
-- Replace `MondayStorageSupplierRepository` with a Document DB adapter if query complexity or record volume warrants it; no React or service changes are required.
+- Replace `MondayStorageSupplierRepository` or `MondayStorageSourcingEventRepository` with Document DB adapters if query complexity or record volume warrants it; no React or service changes are required (see ADR-001, ADR-002).
 - Extend board discovery to support item-creation write-back once a write scope is added.
 - Keep GraphQL, tokens, credentials, and authorization enforcement outside React.

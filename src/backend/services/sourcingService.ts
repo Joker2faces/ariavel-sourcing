@@ -1,5 +1,2 @@
-import type { SourcingRepository } from '../repositories/sourcingRepository';
-
-export function createSourcingService(repository: SourcingRepository) {
-  return { listRecentEvents: () => repository.listRecentEvents() };
-}
+// M1 placeholder — superseded by SourcingEventService (M4).
+export { createSourcingEventService as createSourcingService } from './sourcingEventService';

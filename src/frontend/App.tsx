@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createSourcingService } from '../backend/services/sourcingService';
-import { mockSourcingRepository } from '../backend/repositories/mockSourcingRepository';
 import { createInMemorySupplierRepository } from '../backend/repositories/inMemorySupplierRepository';
 import { createMondayStorageSupplierRepository } from '../backend/repositories/mondayStorageSupplierRepository';
+import { mockSourcingEvents } from '../backend/repositories/mockSourcingRepository';
 import { mockSuppliers } from '../backend/repositories/mockSupplierData';
+import { createInMemorySourcingEventRepository } from '../backend/repositories/inMemorySourcingEventRepository';
+import { createMondayStorageSourcingEventRepository } from '../backend/repositories/mondayStorageSourcingEventRepository';
 import { createSupplierService, type SupplierService } from '../backend/services/supplierService';
+import { createSourcingEventService, type SourcingEventService } from '../backend/services/sourcingEventService';
 import { developmentTenantContextProvider } from '../backend/tenancy/tenantContext';
 import { createMondayTenantContextProvider } from '../backend/tenancy/mondayTenantContextProvider';
 import { mockMondayBoardProvider } from '../backend/providers/mockMondayBoardProvider';
@@ -13,34 +15,59 @@ import { createMondayRuntimeAdapter, detectRuntimeMode, RuntimeMode } from '../b
 import type { RuntimeCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { deriveCapabilities, fullCapabilities } from '../backend/runtime/runtimeCapabilities';
 import type { SourcingEvent, SourcingEventStatus } from '../shared/types/domain';
+import { isClosingSoon, formatDeadlineDisplay } from '../shared/utils/deadline';
 import { Icon } from './components/Icon';
 import { SuppliersPage } from './suppliers/SuppliersPage';
+import { SourcingEventsPage } from './sourcing/SourcingEventsPage';
 import './styles.css';
 
-const sourcingService = createSourcingService(mockSourcingRepository);
 const nav = [{ label: 'Sourcing Events', icon: 'clipboard' }, { label: 'Suppliers', icon: 'users' }, { label: 'Awards', icon: 'trophy' }, { label: 'Settings', icon: 'settings' }] as const;
-const statusLabel: Record<SourcingEventStatus, string> = { active: 'Active', awaiting_quotes: 'Awaiting Quotes', closing_soon: 'Closing Soon', completed: 'Completed' };
 
-function formatDeadline(value: string) { return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
+const STATUS_LABEL: Record<SourcingEventStatus, string> = {
+  DRAFT: 'Draft',
+  READY_FOR_INVITATION: 'Ready',
+  CANCELLED: 'Cancelled',
+};
 
-function useRuntimeSupplierService(injected?: SupplierService): {
-  service: SupplierService | null;
+interface RuntimeServices {
+  supplierService: SupplierService;
+  eventService: SourcingEventService;
   capabilities: RuntimeCapabilities;
+}
+
+function useRuntimeServices(injected?: { supplierService?: SupplierService; eventService?: SourcingEventService }): {
+  services: RuntimeServices | null;
   loading: boolean;
   error: string;
 } {
-  const [service, setService] = useState<SupplierService | null>(injected ?? null);
-  const [capabilities, setCapabilities] = useState<RuntimeCapabilities>(fullCapabilities);
-  const [loading, setLoading] = useState(!injected);
+  const [services, setServices] = useState<RuntimeServices | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (injected) return;
+    if (injected?.supplierService) {
+      const eventRepo = createInMemorySourcingEventRepository(mockSourcingEvents);
+      const eventSvc = injected.eventService ?? createSourcingEventService(eventRepo, developmentTenantContextProvider, injected.supplierService);
+      setServices({ supplierService: injected.supplierService, eventService: eventSvc, capabilities: fullCapabilities });
+      setLoading(false);
+      return;
+    }
+    if (injected?.eventService) {
+      const supplierRepo = createInMemorySupplierRepository(mockSuppliers);
+      const supplierSvc = createSupplierService(supplierRepo, developmentTenantContextProvider, mockMondayBoardProvider);
+      setServices({ supplierService: supplierSvc, eventService: injected.eventService, capabilities: fullCapabilities });
+      setLoading(false);
+      return;
+    }
+
     const mode = detectRuntimeMode();
 
     if (mode !== RuntimeMode.MONDAY) {
-      const devService = createSupplierService(createInMemorySupplierRepository(mockSuppliers), developmentTenantContextProvider, mockMondayBoardProvider);
-      setService(devService);
+      const supplierRepo = createInMemorySupplierRepository(mockSuppliers);
+      const eventRepo = createInMemorySourcingEventRepository(mockSourcingEvents);
+      const supplierSvc = createSupplierService(supplierRepo, developmentTenantContextProvider, mockMondayBoardProvider);
+      const eventSvc = createSourcingEventService(eventRepo, developmentTenantContextProvider, supplierSvc);
+      setServices({ supplierService: supplierSvc, eventService: eventSvc, capabilities: fullCapabilities });
       setLoading(false);
       return;
     }
@@ -53,31 +80,27 @@ function useRuntimeSupplierService(injected?: SupplierService): {
         await tenantProvider.initialize();
         const context = await runtime.getContext();
         const caps = deriveCapabilities(context);
-        const repo = createMondayStorageSupplierRepository(runtime);
+        const supplierRepo = createMondayStorageSupplierRepository(runtime);
+        const eventRepo = createMondayStorageSourcingEventRepository(runtime);
         const boardProvider = createMondayApiBoardProvider(runtime);
-        const svc = createSupplierService(repo, tenantProvider, boardProvider);
-        if (!cancelled) {
-          setService(svc);
-          setCapabilities(caps);
-        }
+        const supplierSvc = createSupplierService(supplierRepo, tenantProvider, boardProvider);
+        const eventSvc = createSourcingEventService(eventRepo, tenantProvider, supplierSvc);
+        if (!cancelled) setServices({ supplierService: supplierSvc, eventService: eventSvc, capabilities: caps });
       } catch (err) {
-        if (!cancelled) {
-          const msg = err instanceof Error ? err.message : 'Failed to connect to monday. Reload the page.';
-          setError(msg);
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to connect to monday. Reload the page.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [injected]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { service, capabilities, loading, error };
+  return { services, loading, error };
 }
 
-export default function App({ supplierService: injected }: { supplierService?: SupplierService }) {
+export default function App({ supplierService: injSupplier, eventService: injEvent }: { supplierService?: SupplierService; eventService?: SourcingEventService }) {
   const [activeNav, setActiveNav] = useState('Sourcing Events');
-  const { service, capabilities, loading, error } = useRuntimeSupplierService(injected);
+  const { services, loading, error } = useRuntimeServices({ supplierService: injSupplier, eventService: injEvent });
 
   if (loading) {
     return (
@@ -116,26 +139,88 @@ export default function App({ supplierService: injected }: { supplierService?: S
         <nav className="mobile-navigation" aria-label="Mobile primary navigation">
           {nav.map(item => <button key={item.label} className={activeNav === item.label ? 'selected' : ''} onClick={() => setActiveNav(item.label)}><Icon name={item.icon} size={18} /><span>{item.label}</span></button>)}
         </nav>
-        {activeNav === 'Suppliers' && service
-          ? <SuppliersPage service={service} capabilities={capabilities} />
-          : <SourcingHub title={activeNav} />}
+
+        {activeNav === 'Suppliers' && services
+          ? <SuppliersPage service={services.supplierService} capabilities={services.capabilities} />
+          : activeNav === 'Sourcing Events' && services
+          ? <SourcingEventsPage service={services.eventService} capabilities={services.capabilities} />
+          : <PlaceholderPage title={activeNav} />}
       </main>
     </div>
   );
 }
 
-function SourcingHub({ title }: { title: string }) {
-  const [events, setEvents] = useState<SourcingEvent[]>([]);
-  const [notice, setNotice] = useState('');
-  useEffect(() => { void sourcingService.listRecentEvents().then(setEvents); }, []);
-  const counts = useMemo(() => ({ active: events.filter(e => e.status === 'active').length, awaiting: events.filter(e => e.status === 'awaiting_quotes').length, closing: events.filter(e => e.status === 'closing_soon').length, completed: events.filter(e => e.status === 'completed').length }), [events]);
-  const createEvent = () => { setNotice('Create event flow is ready for the next milestone.'); window.setTimeout(() => setNotice(''), 3500); };
-  return <div className="content-wrap"><div className="page-heading"><div><h1>{title}</h1><p>Keep every supplier quote aligned, comparable and ready for a confident decision.</p></div><button className="primary-button" onClick={createEvent}>+ <span>Create sourcing event</span></button></div>
-    {notice && <div className="notice" role="status">{notice}</div>}
-    <section className="summary-grid" aria-label="Sourcing summary"><SummaryCard label="Active RFQs" value={counts.active} tone="blue" icon="clipboard" /><SummaryCard label="Awaiting Quotes" value={counts.awaiting} tone="orange" icon="clock" /><SummaryCard label="Closing Soon" value={counts.closing} tone="red" icon="calendar" /><SummaryCard label="Completed" value={counts.completed} tone="green" icon="check" /></section>
-    <section className="events-panel"><div className="panel-header"><h2>Recent sourcing events</h2><button className="filter-button">Filter <Icon name="chevron" size={15} /></button></div><div className="table-wrap"><table><thead><tr><th>RFQ name</th><th>Status</th><th>Deadline</th><th>Supplier responses</th><th aria-label="Actions" /></tr></thead><tbody>{events.map(event => <tr key={event.id}><td className="event-name">{event.title}</td><td><Status status={event.status} /></td><td>{formatDeadline(event.deadline)}</td><td>{event.supplierResponseCount} / {event.supplierCount}</td><td><button className="open-button" onClick={() => setNotice(`Opening ${event.title}`)}>Open</button></td></tr>)}</tbody></table></div><div className="panel-footer"><span>1–{events.length} of {events.length}</span><div className="pagination"><button aria-label="Previous page">‹</button><button className="page-selected">1</button><button aria-label="Next page">›</button></div><button className="per-page">10 per page <Icon name="chevron" size={14} /></button></div></section>
-    <p className="responsive-note">This view adapts to your screen. On smaller devices, cards stack and the table becomes horizontally scrollable.</p>
-  </div>;
+function PlaceholderPage({ title }: { title: string }) {
+  return (
+    <div className="content-wrap">
+      <div className="page-heading"><div><h1>{title}</h1><p>This section is coming in a future milestone.</p></div></div>
+      <div className="empty-state"><h2>Coming soon</h2><p>{title} features will be available in a future milestone.</p></div>
+    </div>
+  );
 }
-function SummaryCard({ label, value, tone, icon }: { label: string; value: number; tone: string; icon: 'clipboard' | 'clock' | 'calendar' | 'check' }) { return <div className="summary-card"><span>{label}</span><strong className={tone}>{value}</strong><span className={`summary-icon ${tone}`}><Icon name={icon} size={23} /></span></div>; }
-function Status({ status }: { status: SourcingEventStatus }) { return <span className={`status ${status}`}><span className="status-dot">{status === 'completed' ? '✓' : '•'}</span>{statusLabel[status]}</span>; }
+
+export function SourcingHub({ eventService }: { eventService: SourcingEventService }) {
+  const [events, setEvents] = useState<SourcingEvent[]>([]);
+  const [showWizard, setShowWizard] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => { void eventService.list().then(setEvents); }, [eventService]);
+
+  const counts = useMemo(() => {
+    const now = new Date();
+    return {
+      draft: events.filter(e => e.status === 'DRAFT').length,
+      ready: events.filter(e => e.status === 'READY_FOR_INVITATION').length,
+      closing: events.filter(e => e.status !== 'CANCELLED' && e.deadline && isClosingSoon(e.deadline, now)).length,
+      total: events.filter(e => e.status !== 'CANCELLED').length,
+    };
+  }, [events]);
+
+  if (showWizard) {
+    return <div className="content-wrap"><div className="notice" role="status">Use the Sourcing Events page to create RFQs.</div></div>;
+  }
+
+  return (
+    <div className="content-wrap">
+      <div className="page-heading">
+        <div><h1>Sourcing Events</h1><p>Keep every supplier quote aligned, comparable and ready for a confident decision.</p></div>
+        <button className="primary-button" onClick={() => setShowWizard(true)}>+ <span>Create sourcing event</span></button>
+      </div>
+      {notice && <div className="notice" role="status">{notice}</div>}
+      <section className="summary-grid" aria-label="Sourcing summary">
+        <SummaryCard label="Draft Events" value={counts.draft} tone="blue" icon="clipboard" />
+        <SummaryCard label="Ready for Invitation" value={counts.ready} tone="green" icon="check" />
+        <SummaryCard label="Closing Soon" value={counts.closing} tone="orange" icon="clock" />
+        <SummaryCard label="Total Active" value={counts.total} tone="blue" icon="calendar" />
+      </section>
+      <section className="events-panel">
+        <div className="panel-header"><h2>Recent sourcing events</h2></div>
+        <div className="table-wrap">
+          <table><thead><tr><th>Reference</th><th>Event</th><th>Status</th><th>Deadline</th><th>Lines</th><th>Suppliers</th><th aria-label="Actions" /></tr></thead>
+            <tbody>{events.slice(0, 10).map(event => (
+              <tr key={event.id}>
+                <td className="rfq-ref">{event.reference}</td>
+                <td className="event-name">{event.title}</td>
+                <td><HubStatus status={event.status} /></td>
+                <td>{event.deadline ? formatDeadlineDisplay(event.deadline) : '—'}</td>
+                <td>{event.lines.length}</td>
+                <td>{event.supplierSelections.length}</td>
+                <td><button className="open-button" onClick={() => setNotice(`Opening ${event.reference}`)}>Open</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+        <div className="panel-footer"><span>1–{Math.min(10, events.length)} of {events.length}</span></div>
+      </section>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, tone, icon }: { label: string; value: number; tone: string; icon: 'clipboard' | 'clock' | 'calendar' | 'check' }) {
+  return <div className="summary-card"><span>{label}</span><strong className={tone}>{value}</strong><span className={`summary-icon ${tone}`}><Icon name={icon} size={23} /></span></div>;
+}
+
+function HubStatus({ status }: { status: SourcingEventStatus }) {
+  const cls = status === 'DRAFT' ? 'awaiting_quotes' : status === 'READY_FOR_INVITATION' ? 'active' : 'closing_soon';
+  return <span className={`status ${cls}`}><span className="status-dot">•</span>{STATUS_LABEL[status]}</span>;
+}

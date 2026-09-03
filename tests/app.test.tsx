@@ -7,22 +7,28 @@ import App from '../src/frontend/App';
 afterEach(cleanup);
 
 describe('Sourcing Hub', () => {
-  it('renders the dashboard and responds to create event', async () => {
+  it('renders the sourcing events page and shows mock events', async () => {
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Sourcing Events' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create sourcing event/i })).toBeInTheDocument();
+    // Mock events loaded from mockSourcingEvents (may appear in table + mobile cards)
+    const matches = await screen.findAllByText('Q3 Packaging Materials');
+    expect(matches.length).toBeGreaterThan(0);
+  });
+
+  it('opens the create event wizard when Create sourcing event is clicked', async () => {
     const user = userEvent.setup();
     render(<App />);
-    expect(await screen.findByText('Recent sourcing events')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Open' })).toHaveLength(10);
+    await screen.findByRole('heading', { name: 'Sourcing Events' });
     await user.click(screen.getByRole('button', { name: /Create sourcing event/i }));
-    expect(screen.getByRole('status')).toHaveTextContent('Create event flow is ready for the next milestone.');
+    expect(await screen.findByRole('heading', { name: 'Create Sourcing Event' })).toBeInTheDocument();
   });
 
   it('provides a mobile primary navigation that can open Supplier Master', async () => {
     const user = userEvent.setup();
     render(<App />);
-
     const mobileNavigation = screen.getByRole('navigation', { name: 'Mobile primary navigation' });
     await user.click(within(mobileNavigation).getByRole('button', { name: 'Suppliers' }));
-
     expect(await screen.findByRole('heading', { name: 'Suppliers' })).toBeInTheDocument();
   });
 });

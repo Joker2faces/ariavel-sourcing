@@ -35,3 +35,20 @@ Milestone 3 makes the app fully functional inside a real monday workspace:
 - Professional loading, error, and permission states are shown during SDK initialization and board discovery.
 
 Milestone 3 does not invite suppliers, collect quotations, normalize bids, calculate landed cost, create awards, integrate with ERPs, monetize the app, submit to Marketplace, or promote a production version.
+
+## Milestone 4 — Sourcing Events & RFQ Builder
+
+Milestone 4 replaces the M1 mock hub with a complete procurement event workflow. Buyers can create, edit, save, and manage Sourcing Events (RFQs) with:
+
+- **Multi-step Create Wizard**: Details → Line Items → Suppliers → Review
+- **Line Item Management**: add, remove, duplicate lines with description, SKU, quantity, unit, category, specification, target unit price, and requested delivery date
+- **Supplier Selection**: only ACTIVE suppliers are eligible; a snapshot of supplier name, code, and email is captured at selection time
+- **Lifecycle**: `DRAFT → READY_FOR_INVITATION | CANCELLED`; `READY_FOR_INVITATION → DRAFT | CANCELLED`; `CANCELLED` is terminal
+- **READY validation**: requires title, reference, currency, ≥1 line, ≥1 supplier; warns on missing supplier email
+- **Reference format**: `RFQ-YYYY-XXXXX` (5 unambiguous alphanumeric characters, auto-generated)
+- **Search and filters**: by reference/title/category/description, status, currency, category, deadline state
+- **Event Detail Drawer**: tabbed Overview / Lines / Suppliers; inline status transitions; Edit and Cancel actions
+- **Summary cards**: Draft, Ready for Invitation, Closing Soon, Cancelled
+- **Persistence**: `monday.storage` global scope, `ariavel:sourcing-event:*` namespace, optimistic concurrency (see ADR-002)
+
+Milestone 4 does not collect supplier quotations, normalize bids, calculate landed cost, create awards, or integrate with ERPs.

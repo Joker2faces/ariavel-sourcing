@@ -1,17 +1,72 @@
 import type { SourcingEvent } from '../../shared/types/domain';
-import type { SourcingRepository } from './sourcingRepository';
 
-const events: SourcingEvent[] = [
-  ['Q3 Packaging Materials', 'active', '2026-09-05T17:00:00', 8, 15],
-  ['Warehouse Safety Equipment', 'active', '2026-09-07T12:00:00', 6, 12],
-  ['Regional Freight Tender', 'closing_soon', '2026-09-02T10:00:00', 9, 18],
-  ['IT Hardware & Peripherals', 'awaiting_quotes', '2026-09-09T15:00:00', 3, 10],
-  ['Facility Cleaning Services', 'active', '2026-09-12T09:00:00', 5, 9],
-  ['MRO Supplies', 'awaiting_quotes', '2026-09-10T11:00:00', 2, 8],
-  ['Employee Uniforms', 'closing_soon', '2026-09-03T16:00:00', 7, 12],
-  ['Marketing Collateral Print', 'active', '2026-09-13T17:00:00', 4, 7],
-  ['Renewable Energy Solutions', 'completed', '2026-08-15T17:00:00', 12, 12],
-  ['Office Furniture', 'completed', '2026-08-10T12:00:00', 10, 10],
-].map(([title, status, deadline, response, supplier], index) => ({ id: `rfq-${index + 1}`, tenantId: 'mock-tenant', title: title as string, status: status as SourcingEvent['status'], deadline: deadline as string, currency: 'EUR', createdAt: '2026-08-01T09:00:00', createdBy: 'mock-user', supplierResponseCount: response as number, supplierCount: supplier as number }));
-
-export const mockSourcingRepository: SourcingRepository = { async listRecentEvents() { return events; } };
+// M4 mock sourcing events for local development — replaces M1 placeholder mock
+export const mockSourcingEvents: SourcingEvent[] = [
+  {
+    id: 'rfq-mock-1',
+    tenantId: 'ariavel-development-tenant',
+    reference: 'RFQ-2026-A7K3',
+    title: 'Q3 Packaging Materials',
+    status: 'DRAFT',
+    currency: 'EUR',
+    deadline: '2026-09-25',
+    category: 'Packaging',
+    ownerUserId: 'dev-user',
+    ownerName: 'Dev User',
+    lines: [
+      { id: 'line-1a', description: 'Corrugated boxes 60×40×30cm', quantity: 5000, unit: 'pcs', sku: 'BOX-6040' },
+      { id: 'line-1b', description: 'Bubble wrap rolls 50cm', quantity: 200, unit: 'm', targetUnitPrice: 1.2 },
+    ],
+    supplierSelections: [
+      { supplierId: 'sup-1', source: 'ARIAVEL', supplierNameSnapshot: 'Acme Packaging', supplierCodeSnapshot: 'ACP-001', emailSnapshot: 'sales@acmepkg.com', selectedAt: '2026-09-01T10:00:00Z' },
+    ],
+    createdAt: '2026-09-01T09:00:00Z',
+    updatedAt: '2026-09-01T09:00:00Z',
+    createdByUserId: 'dev-user',
+    updatedByUserId: 'dev-user',
+  },
+  {
+    id: 'rfq-mock-2',
+    tenantId: 'ariavel-development-tenant',
+    reference: 'RFQ-2026-B9M1',
+    title: 'Warehouse Safety Equipment',
+    status: 'READY_FOR_INVITATION',
+    currency: 'EUR',
+    deadline: '2026-09-30',
+    category: 'Safety',
+    ownerUserId: 'dev-user',
+    ownerName: 'Dev User',
+    lines: [
+      { id: 'line-2a', description: 'Safety helmets EN397', quantity: 50, unit: 'pcs', sku: 'HELM-EN397' },
+      { id: 'line-2b', description: 'High-visibility vests XL', quantity: 80, unit: 'pcs' },
+    ],
+    supplierSelections: [
+      { supplierId: 'sup-2', source: 'ARIAVEL', supplierNameSnapshot: 'SafeGuard Supplies', emailSnapshot: 'orders@safeguard.eu', selectedAt: '2026-09-02T11:00:00Z' },
+      { supplierId: 'sup-3', source: 'ARIAVEL', supplierNameSnapshot: 'WorkWear Pro', supplierCodeSnapshot: 'WWP-007', selectedAt: '2026-09-02T11:30:00Z' },
+    ],
+    createdAt: '2026-09-01T11:00:00Z',
+    updatedAt: '2026-09-02T11:30:00Z',
+    createdByUserId: 'dev-user',
+    updatedByUserId: 'dev-user',
+  },
+  {
+    id: 'rfq-mock-3',
+    tenantId: 'ariavel-development-tenant',
+    reference: 'RFQ-2026-C3P7',
+    title: 'IT Hardware & Peripherals',
+    status: 'DRAFT',
+    currency: 'USD',
+    deadline: '2026-10-10',
+    category: 'IT',
+    ownerUserId: 'dev-user',
+    ownerName: 'Dev User',
+    lines: [
+      { id: 'line-3a', description: 'USB-C Monitors 27"', quantity: 12, unit: 'pcs', targetUnitPrice: 350 },
+    ],
+    supplierSelections: [],
+    createdAt: '2026-09-02T08:00:00Z',
+    updatedAt: '2026-09-02T08:00:00Z',
+    createdByUserId: 'dev-user',
+    updatedByUserId: 'dev-user',
+  },
+];
