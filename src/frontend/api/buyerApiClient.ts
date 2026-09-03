@@ -30,6 +30,8 @@ export interface BuyerApiClient {
   finalizeAwardScenario(scenarioId: string): Promise<AwardScenario>;
   listAuditEvents(eventId: string): Promise<AuditEvent[]>;
   exportAuditCsv(eventId: string): Promise<Blob>;
+  exportTenantData(): Promise<Blob>;
+  deleteTenantData(confirm: string): Promise<Record<string, number>>;
 }
 
 export interface CreateInvitationBody {
@@ -181,6 +183,15 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
       const res = await fetch(`${baseUrl}/api/buyer/audit/export.csv?eventId=${encodeURIComponent(eventId)}`, { headers: await headers() });
       if (!res.ok) throw new Error(`API error ${res.status}: audit export`);
       return res.blob();
+    },
+    async exportTenantData() {
+      const res = await fetch(`${baseUrl}/api/buyer/data/export`, { headers: await headers() });
+      if (!res.ok) throw new Error(`API error ${res.status}: data export`);
+      return res.blob();
+    },
+    async deleteTenantData(confirm) {
+      const data = await post<{ deleted: Record<string, number> }>('/api/buyer/data/delete', { confirm });
+      return data.deleted;
     },
   };
 }

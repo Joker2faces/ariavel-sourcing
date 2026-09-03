@@ -13,6 +13,8 @@ import { createDocumentService } from './services/documentService.js';
 import { createTenantSettingsRepository } from './db/tenantSettingsRepository.js';
 import { createTenantSettingsService } from './services/tenantSettingsService.js';
 import { createAuditService } from './services/auditService.js';
+import { createTenantDataService } from './services/tenantDataService.js';
+import type { Db } from 'mongodb';
 import { createInMemoryTenantSettingsRepository } from './db/inMemoryTenantSettingsRepository.js';
 import { createInMemoryInvitationRepository } from './db/inMemoryInvitationRepository.js';
 import { createInMemoryQuoteRepository } from './db/inMemoryQuoteRepository.js';
@@ -39,6 +41,7 @@ async function start() {
   // MNDY_MONGODB_CONNECTION_STRING is auto-injected by monday Code after first deployment.
   // On first boot (before Document DB is provisioned), fall back to in-memory repositories.
   let dbConnected = false;
+  let mongoDb: Db | undefined;
   let invRepo, quoteRepo, auditRepo, compRepo, awardRepo, attachmentRepo, settingsRepo;
   let healthDeps: HealthDependencies = {};
 
@@ -46,6 +49,7 @@ async function start() {
   if (mongoUri) {
     try {
       const db = await getDb();
+      mongoDb = db;
       invRepo = createInvitationRepository(db);
       quoteRepo = createQuoteRepository(db);
       auditRepo = createAuditRepository(db);
@@ -87,6 +91,10 @@ async function start() {
   const awardService = createAwardService(awardRepo, compRepo, auditRepo);
   const settingsService = createTenantSettingsService(settingsRepo, auditRepo);
   const auditService = createAuditService(auditRepo);
+  // Tenant data export/deletion operates directly on Mongo collections and is
+  // only meaningful against the real Document DB — dev/in-memory data is
+  // ephemeral by design (see docs/PROJECT_STATE.md) and needs no erasure path.
+  const dataService = mongoDb ? createTenantDataService(mongoDb, auditRepo) : undefined;
 
   // OBJECT_STORAGE_BUCKET is auto-injected by monday Code once the app is deployed there.
   // Before that (local dev, tests, first-release bootstrap) fall back to an in-memory
@@ -108,6 +116,7 @@ async function start() {
     inMemoryStorage ? { provider: inMemoryStorage, attachmentRepo } : undefined,
     settingsService,
     auditService,
+    dataService,
   );
 
   const server = app.listen(PORT, () => {

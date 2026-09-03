@@ -94,7 +94,7 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, api
           {active === 'sourcing' && <SourcingSection settings={settings} onSave={save} readOnly={!apiClient} />}
           {active === 'comparison' && <ComparisonSection settings={settings} onSave={save} readOnly={!apiClient} />}
           {active === 'security' && <SecuritySection settings={settings} onSave={save} capabilities={capabilities} readOnly={!apiClient} />}
-          {active === 'data' && <DataPrivacySection />}
+          {active === 'data' && <DataPrivacySection apiClient={apiClient} />}
           {active === 'billing' && <BillingSection />}
         </div>
       </div>
@@ -370,9 +370,52 @@ function SecuritySection({ settings, onSave, capabilities, readOnly }: { setting
   );
 }
 
-function DataPrivacySection() {
+function DataPrivacySection({ apiClient }: { apiClient: BuyerApiClient | null }) {
+  const [exporting, setExporting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+
+  async function handleExport() {
+    if (!apiClient) return;
+    setExporting(true);
+    setNotice(null);
+    try {
+      const blob = await apiClient.exportTenantData();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ariavel-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setNotice({ tone: 'error', text: 'Could not export your data.' });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!apiClient) return;
+    setDeleting(true);
+    setNotice(null);
+    try {
+      await apiClient.deleteTenantData(deleteConfirm);
+      setNotice({ tone: 'success', text: 'All Ariavel-owned data for this tenant has been deleted.' });
+      setDeleteConfirm('');
+    } catch {
+      setNotice({ tone: 'error', text: 'Deletion failed — check the confirmation phrase and try again.' });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="settings-section">
+      {notice && <div className={`notice ${notice.tone === 'error' ? 'notice-error' : 'notice-success'}`} role="status">{notice.text}</div>}
+
       <SettingsCard title="Data Storage">
         <SettingsRow label="Database" value="monday.com managed MongoDB (monday Code)" />
         <SettingsRow label="File storage" value="monday Object Storage" />
@@ -386,7 +429,7 @@ function DataPrivacySection() {
         <SettingsRow label="Supplier quotes" value="Retained indefinitely (audit trail)" />
         <SettingsRow label="Award scenarios" value="Retained indefinitely (finalized records)" />
         <SettingsRow label="File attachments" value="Retained until manually deleted" />
-        <SettingsRow label="Audit log" value="Retained indefinitely" />
+        <SettingsRow label="Audit log" value="Retained indefinitely, including after a tenant data deletion (accountability record)" />
       </SettingsCard>
 
       <SettingsCard title="Supplier Portal Privacy">
@@ -396,10 +439,31 @@ function DataPrivacySection() {
         <SettingsRow label="Internal buyer notes" value={<StatusBadge ok={false} trueLabel="Visible" falseLabel="Hidden from suppliers" />} />
       </SettingsCard>
 
+      <SettingsCard title="Your Data">
+        <SettingsRow
+          label="Export all tenant data"
+          note="Downloads a JSON file with every invitation, quote, comparison, award, attachment record, setting, and audit event Ariavel stores for your organization"
+          value={<button className="secondary-button" disabled={!apiClient || exporting} onClick={handleExport}>{exporting ? 'Exporting…' : 'Export data'}</button>}
+        />
+        <SettingsRow
+          label="Delete all tenant data"
+          note='Permanently deletes everything above. Cannot be undone. Type "DELETE MY TENANT DATA" to confirm.'
+          value={
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="settings-input" value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} placeholder="DELETE MY TENANT DATA" aria-label="Deletion confirmation phrase" />
+              <button className="secondary-button danger" disabled={!apiClient || deleting || deleteConfirm !== 'DELETE MY TENANT DATA'} onClick={handleDelete}>
+                {deleting ? 'Deleting…' : 'Delete everything'}
+              </button>
+            </div>
+          }
+        />
+      </SettingsCard>
+
       <SettingsCard title="GDPR / Compliance">
         <SettingsRow label="Personal data processed" value="monday.com user IDs, supplier contact names" />
         <SettingsRow label="Data processor" value="monday.com Ltd. (platform DPA applies)" />
         <SettingsRow label="Audit log export" value="CSV export available from the event Activity tab" />
+        <SettingsRow label="Uninstall / deauthorization" value="Not yet automated — see docs/PRIVACY_DATA_MAP.md" />
       </SettingsCard>
     </div>
   );
