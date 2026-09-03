@@ -19,6 +19,7 @@ import { isClosingSoon, formatDeadlineDisplay } from '../shared/utils/deadline';
 import { Icon } from './components/Icon';
 import { SuppliersPage } from './suppliers/SuppliersPage';
 import { SourcingEventsPage } from './sourcing/SourcingEventsPage';
+import { SettingsPage } from './settings/SettingsPage';
 import './styles.css';
 
 const nav = [{ label: 'Sourcing Events', icon: 'clipboard' }, { label: 'Suppliers', icon: 'users' }, { label: 'Awards', icon: 'trophy' }, { label: 'Settings', icon: 'settings' }] as const;
@@ -144,6 +145,8 @@ export default function App({ supplierService: injSupplier, eventService: injEve
           ? <SuppliersPage service={services.supplierService} capabilities={services.capabilities} />
           : activeNav === 'Sourcing Events' && services
           ? <SourcingEventsPage service={services.eventService} capabilities={services.capabilities} />
+          : activeNav === 'Settings' && services
+          ? <SettingsPage capabilities={services.capabilities} serverBaseUrl="" serverAvailable={false} />
           : <PlaceholderPage title={activeNav} />}
       </main>
     </div>
@@ -154,7 +157,7 @@ function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="content-wrap">
       <div className="page-heading"><div><h1>{title}</h1><p>This section is coming in a future milestone.</p></div></div>
-      <div className="empty-state"><h2>Coming soon</h2><p>{title} features will be available in a future milestone.</p></div>
+      <div className="empty-state"><h2>Coming soon</h2><p>{title} will be available in a future milestone.</p></div>
     </div>
   );
 }

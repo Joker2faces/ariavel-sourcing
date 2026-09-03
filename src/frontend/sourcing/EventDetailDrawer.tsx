@@ -2,7 +2,9 @@ import { useState } from 'react';
 import type { SourcingEvent, SourcingEventStatus } from '../../shared/types/domain';
 import type { SourcingEventService } from '../../backend/services/sourcingEventService';
 import type { RuntimeCapabilities } from '../../backend/runtime/runtimeCapabilities';
+import type { BuyerApiClient } from '../api/buyerApiClient';
 import { formatDeadlineDisplay, isOverdue, isClosingSoon } from '../../shared/utils/deadline';
+import { InvitationsPanel } from './InvitationsPanel';
 
 const STATUS_LABEL: Record<SourcingEventStatus, string> = {
   DRAFT: 'Draft',
@@ -14,6 +16,8 @@ export function EventDetailDrawer({
   event,
   service,
   capabilities: _capabilities,
+  apiClient,
+  serverAvailable,
   onClose,
   onEdit,
   onStatusChange,
@@ -21,11 +25,13 @@ export function EventDetailDrawer({
   event: SourcingEvent;
   service: SourcingEventService;
   capabilities?: RuntimeCapabilities;
+  apiClient?: BuyerApiClient | null;
+  serverAvailable?: boolean;
   onClose: () => void;
   onEdit?: () => void;
   onStatusChange?: (status: SourcingEventStatus) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers' | 'invitations'>('overview');
   const { valid: readyValid } = service.validateReady(event);
 
   const deadlineClass = event.deadline
@@ -64,7 +70,7 @@ export function EventDetailDrawer({
           </div>
 
           <nav className="detail-tabs" role="tablist" aria-label="Event details sections">
-            {(['overview', 'lines', 'suppliers'] as const).map(tab => (
+            {(['overview', 'lines', 'suppliers', 'invitations'] as const).map(tab => (
               <button
                 key={tab}
                 role="tab"
@@ -72,7 +78,10 @@ export function EventDetailDrawer({
                 className={`detail-tab ${activeTab === tab ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab === 'overview' ? 'Overview' : tab === 'lines' ? `Lines (${event.lines.length})` : `Suppliers (${event.supplierSelections.length})`}
+                {tab === 'overview' ? 'Overview'
+                  : tab === 'lines' ? `Lines (${event.lines.length})`
+                  : tab === 'suppliers' ? `Suppliers (${event.supplierSelections.length})`
+                  : 'Invitations'}
               </button>
             ))}
           </nav>
@@ -157,6 +166,14 @@ export function EventDetailDrawer({
                   ))}
                 </ul>}
             </div>
+          )}
+
+          {activeTab === 'invitations' && (
+            <InvitationsPanel
+              event={event}
+              apiClient={apiClient ?? null}
+              serverAvailable={serverAvailable ?? false}
+            />
           )}
         </div>
       </div>

@@ -56,8 +56,27 @@ References follow the format `RFQ-YYYY-XXXXX` with 5 characters from an unambigu
 
 The Create Event Wizard uses `useReducer` for state management. Step 1 validates reference/title/currency before advancing. Step 2 manages line items with add/remove/duplicate. Step 3 loads `listEligibleSuppliers()` on mount, filtered to ACTIVE only. Step 4 shows a full review with `validateReadyForInvitation` preview errors and email-missing warnings.
 
+## Server-side backend (Milestone 5)
+
+`src/server/` is a Node.js Express application hosted via monday Code (port 8080). It has two route groups:
+- `/api/buyer/*` — JWT-authenticated buyer routes. Every request must carry `Authorization: Bearer <monday-sessionToken>`. The `buyerAuth` middleware verifies the JWT using `MONDAY_SIGNING_SECRET` (from SecretsManager). `tenantId` is derived exclusively from the verified JWT (`monday-account-{accountId}`). No client-supplied tenantId is trusted.
+- `/api/portal/*` — Token-authenticated supplier portal routes. The raw 64-char hex token in the URL path is hashed (SHA-256) and looked up in Document DB. No session or account is required.
+
+`InvitationService` manages the full `SupplierInvitation` lifecycle (CREATED → OPENED → SUBMITTED | EXPIRED | REVOKED). It uses `generateRawToken` + `hashToken` from `src/server/utils/tokens.ts` for cryptographic token management. The raw token is returned to the caller once and never stored. See ADR-003 and ADR-004.
+
+`QuoteService` manages `SupplierQuote` with upsert-draft and final-submit semantics. Submitted quotes are immutable (any further draft attempt returns `QuoteAlreadySubmittedError`). The `version` field increments on every upsert or submit.
+
+`AuditRepository` logs all state changes to a dedicated `audit_events` collection with actor type, actor ID, entity type, and optional metadata.
+
+Document DB collections: `supplier_invitations`, `supplier_quotes`, `audit_events`. Each query MUST include a `tenantId` filter — this is enforced in the repository methods. See DATA_MODEL.md for the full schema.
+
+In-memory adapters (`inMemoryInvitationRepository`, `inMemoryQuoteRepository`, `inMemoryAuditRepository`) are used in all tests and local development. No real DB connection is required to run tests.
+
+The buyer-side React app communicates with the server via `BuyerApiClient` (`src/frontend/api/buyerApiClient.ts`), which reads the sessionToken from `monday.get("sessionToken")` and sends it as a Bearer header.
+
 ## Future adapters
 
 - Replace `MondayStorageSupplierRepository` or `MondayStorageSourcingEventRepository` with Document DB adapters if query complexity or record volume warrants it; no React or service changes are required (see ADR-001, ADR-002).
 - Extend board discovery to support item-creation write-back once a write scope is added.
 - Keep GraphQL, tokens, credentials, and authorization enforcement outside React.
+- Add email delivery (via monday Webhooks or a provider) to notify suppliers of invitations; currently buyers copy/share the portal link manually.
