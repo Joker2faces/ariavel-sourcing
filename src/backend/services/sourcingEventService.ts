@@ -52,7 +52,10 @@ export interface NewLineId { id: string; }
 
 const ALLOWED_TRANSITIONS: Record<SourcingEventStatus, SourcingEventStatus[]> = {
   DRAFT: ['READY_FOR_INVITATION', 'CANCELLED'],
-  READY_FOR_INVITATION: ['DRAFT', 'CANCELLED'],
+  READY_FOR_INVITATION: ['DRAFT', 'OPEN', 'CANCELLED'],
+  OPEN: ['EVALUATING', 'CANCELLED'],
+  EVALUATING: ['AWARDED', 'CANCELLED'],
+  AWARDED: [],
   CANCELLED: [],
 };
 

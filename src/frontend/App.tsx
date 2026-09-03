@@ -27,6 +27,9 @@ const nav = [{ label: 'Sourcing Events', icon: 'clipboard' }, { label: 'Supplier
 const STATUS_LABEL: Record<SourcingEventStatus, string> = {
   DRAFT: 'Draft',
   READY_FOR_INVITATION: 'Ready',
+  OPEN: 'Open',
+  EVALUATING: 'Evaluating',
+  AWARDED: 'Awarded',
   CANCELLED: 'Cancelled',
 };
 
@@ -224,6 +227,11 @@ function SummaryCard({ label, value, tone, icon }: { label: string; value: numbe
 }
 
 function HubStatus({ status }: { status: SourcingEventStatus }) {
-  const cls = status === 'DRAFT' ? 'awaiting_quotes' : status === 'READY_FOR_INVITATION' ? 'active' : 'closing_soon';
+  const cls = status === 'DRAFT' ? 'awaiting_quotes'
+    : status === 'READY_FOR_INVITATION' ? 'active'
+    : status === 'OPEN' ? 'active'
+    : status === 'EVALUATING' ? 'closing_soon'
+    : status === 'AWARDED' ? 'awarded'
+    : 'closing_soon';
   return <span className={`status ${cls}`}><span className="status-dot">•</span>{STATUS_LABEL[status]}</span>;
 }

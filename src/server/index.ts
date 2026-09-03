@@ -2,8 +2,10 @@ import { getDb, closeDb } from './db/connection.js';
 import { createInvitationRepository } from './db/invitationRepository.js';
 import { createQuoteRepository } from './db/quoteRepository.js';
 import { createAuditRepository } from './db/auditRepository.js';
+import { createComparisonRepository } from './db/comparisonRepository.js';
 import { createInvitationService } from './services/invitationService.js';
 import { createQuoteService } from './services/quoteService.js';
+import { createBidComparisonService } from './services/bidComparisonService.js';
 import { createApp } from './app.js';
 
 const PORT = Number(process.env['PORT'] ?? 8080);
@@ -21,10 +23,12 @@ async function start() {
   const invRepo = createInvitationRepository(db);
   const quoteRepo = createQuoteRepository(db);
   const auditRepo = createAuditRepository(db);
+  const compRepo = createComparisonRepository(db);
   const invService = createInvitationService(invRepo, auditRepo);
   const quoteService = createQuoteService(quoteRepo, auditRepo);
+  const bidComparisonService = createBidComparisonService(invRepo, quoteService, compRepo);
 
-  const app = createApp(invService, quoteService, clientSecret);
+  const app = createApp(invService, quoteService, clientSecret, bidComparisonService);
 
   const server = app.listen(PORT, () => {
     console.log(JSON.stringify({ level: 'info', msg: `Ariavel Sourcing server listening`, port: PORT }));

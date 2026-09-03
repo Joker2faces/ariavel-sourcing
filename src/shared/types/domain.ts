@@ -43,7 +43,7 @@ export type MappingIssueKind = 'VALID' | 'WARNING' | 'MISSING_REQUIRED' | 'UNMAP
 export interface MappingIssue { supplierField: SupplierFieldKey; kind: MappingIssueKind; message: string; }
 
 // Sourcing event domain (Milestone 4)
-export type SourcingEventStatus = 'DRAFT' | 'READY_FOR_INVITATION' | 'CANCELLED';
+export type SourcingEventStatus = 'DRAFT' | 'READY_FOR_INVITATION' | 'OPEN' | 'EVALUATING' | 'AWARDED' | 'CANCELLED';
 
 export interface SourcingLine {
   id: string;

@@ -9,6 +9,9 @@ import { InvitationsPanel } from './InvitationsPanel';
 const STATUS_LABEL: Record<SourcingEventStatus, string> = {
   DRAFT: 'Draft',
   READY_FOR_INVITATION: 'Ready for Invitation',
+  OPEN: 'Open',
+  EVALUATING: 'Evaluating',
+  AWARDED: 'Awarded',
   CANCELLED: 'Cancelled',
 };
 

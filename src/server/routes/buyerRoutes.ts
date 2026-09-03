@@ -1,8 +1,10 @@
 import { Router, type Request, type Response } from 'express';
 import type { InvitationService } from '../services/invitationService.js';
 import type { QuoteService } from '../services/quoteService.js';
+import type { BidComparisonService } from '../services/bidComparisonService.js';
 import { InvitationNotFoundError, InvitationInvalidStatusError } from '../services/invitationService.js';
 import { tenantIdFromAuth, userIdFromAuth } from '../middleware/buyerAuth.js';
+import type { SourcingLine } from '../../shared/types/domain.js';
 
 function param(req: Request, key: string): string {
   return req.params[key] as string;
@@ -11,6 +13,7 @@ function param(req: Request, key: string): string {
 export function createBuyerRouter(
   invitationService: InvitationService,
   quoteService: QuoteService,
+  bidComparisonService?: BidComparisonService,
 ): Router {
   const router = Router();
 
@@ -91,6 +94,94 @@ export function createBuyerRouter(
       const quote = await quoteService.getById(tenantId, param(req, 'id'));
       if (!quote) { res.status(404).json({ error: 'Quote not found' }); return; }
       res.json({ quote });
+    } catch {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Bid Comparison (M6) ────────────────────────────────────────────────────
+
+  router.post('/events/:eventId/comparisons', async (req: Request, res: Response) => {
+    if (!bidComparisonService) { res.status(501).json({ error: 'Bid comparison not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const eventId = param(req, 'eventId');
+      const { baseCurrency, freightAllocationPolicy, fxRates, evaluationCriteria, notes, eventLines } = req.body as {
+        baseCurrency: string;
+        freightAllocationPolicy: 'PROPORTIONAL_TO_LINE_VALUE' | 'EQUAL_PER_LINE' | 'MANUAL';
+        fxRates?: Record<string, number>;
+        evaluationCriteria?: unknown;
+        notes?: string;
+        eventLines: SourcingLine[];
+      };
+      if (!baseCurrency || !freightAllocationPolicy || !Array.isArray(eventLines)) {
+        res.status(400).json({ error: 'baseCurrency, freightAllocationPolicy and eventLines are required' });
+        return;
+      }
+      const snapshot = await bidComparisonService.buildSnapshot(
+        tenantId, eventId, eventLines,
+        { baseCurrency, freightAllocationPolicy, fxRates, evaluationCriteria: evaluationCriteria as never, notes },
+        userId,
+        new Date().toISOString(),
+      );
+      res.status(201).json({ snapshot });
+    } catch {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/events/:eventId/comparisons/latest', async (req: Request, res: Response) => {
+    if (!bidComparisonService) { res.status(501).json({ error: 'Bid comparison not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const snapshot = await bidComparisonService.getLatestSnapshot(tenantId, param(req, 'eventId'));
+      if (!snapshot) { res.status(404).json({ error: 'No comparison snapshot found' }); return; }
+      res.json({ snapshot });
+    } catch {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/events/:eventId/comparisons', async (req: Request, res: Response) => {
+    if (!bidComparisonService) { res.status(501).json({ error: 'Bid comparison not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const snapshots = await bidComparisonService.listSnapshots(tenantId, param(req, 'eventId'));
+      res.json({ snapshots });
+    } catch {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/comparisons/:id', async (req: Request, res: Response) => {
+    if (!bidComparisonService) { res.status(501).json({ error: 'Bid comparison not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const snapshot = await bidComparisonService.getSnapshot(tenantId, param(req, 'id'));
+      if (!snapshot) { res.status(404).json({ error: 'Comparison snapshot not found' }); return; }
+      res.json({ snapshot });
+    } catch {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.patch('/comparisons/:id/scores/:supplierId', async (req: Request, res: Response) => {
+    if (!bidComparisonService) { res.status(501).json({ error: 'Bid comparison not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const { score, comment } = req.body as { score: number; comment?: string };
+      if (typeof score !== 'number' || score < 0 || score > 100) {
+        res.status(400).json({ error: 'score must be a number between 0 and 100' });
+        return;
+      }
+      const snapshot = await bidComparisonService.setManualTechnicalScore(
+        tenantId, param(req, 'id'), param(req, 'supplierId'),
+        score, comment, userId, new Date().toISOString(),
+      );
+      if (!snapshot) { res.status(404).json({ error: 'Snapshot or supplier not found' }); return; }
+      res.json({ snapshot });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }

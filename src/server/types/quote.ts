@@ -22,6 +22,9 @@ export interface SupplierQuote {
   commercialTerms?: string;
   paymentTerms?: string;
   validityDays?: number;
+  freightTotal?: number;
+  freightCurrency?: string;
+  freightIncluded?: boolean;
   supplierNotes?: string;
   internalBuyerNotes?: string;
   version: number;
@@ -35,6 +38,9 @@ export interface QuoteInput {
   commercialTerms?: string;
   paymentTerms?: string;
   validityDays?: number;
+  freightTotal?: number;
+  freightCurrency?: string;
+  freightIncluded?: boolean;
   supplierNotes?: string;
 }
 
@@ -45,6 +51,9 @@ export interface QuotePublicDTO {
   commercialTerms?: string;
   paymentTerms?: string;
   validityDays?: number;
+  freightTotal?: number;
+  freightCurrency?: string;
+  freightIncluded?: boolean;
   supplierNotes?: string;
   submittedAt?: string;
 }

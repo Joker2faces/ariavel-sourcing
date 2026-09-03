@@ -1,5 +1,7 @@
 import type { SupplierInvitation } from '../../server/types/invitation';
 import type { SupplierQuote } from '../../server/types/quote';
+import type { ComparisonSnapshot, ComparisonInput } from '../../shared/types/bid';
+import type { SourcingLine } from '../../shared/types/domain';
 
 export interface BuyerApiClient {
   listInvitations(eventId: string): Promise<SupplierInvitation[]>;
@@ -8,6 +10,10 @@ export interface BuyerApiClient {
   regenerateInvitation(id: string): Promise<{ invitation: SupplierInvitation; portalToken: string }>;
   listQuotes(eventId: string): Promise<SupplierQuote[]>;
   getQuote(id: string): Promise<SupplierQuote>;
+  buildComparison(eventId: string, eventLines: SourcingLine[], input: ComparisonInput): Promise<ComparisonSnapshot>;
+  getLatestComparison(eventId: string): Promise<ComparisonSnapshot | null>;
+  listComparisons(eventId: string): Promise<ComparisonSnapshot[]>;
+  setManualTechnicalScore(snapshotId: string, supplierId: string, score: number, comment?: string): Promise<ComparisonSnapshot>;
 }
 
 export interface CreateInvitationBody {
@@ -38,6 +44,12 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
     return res.json() as Promise<T>;
   }
 
+  async function patch<T>(path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${baseUrl}${path}`, { method: 'PATCH', headers: await headers(), body: body ? JSON.stringify(body) : undefined });
+    if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+    return res.json() as Promise<T>;
+  }
+
   return {
     async listInvitations(eventId) {
       const data = await get<{ invitations: SupplierInvitation[] }>(`/api/buyer/events/${eventId}/invitations`);
@@ -60,6 +72,26 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
     async getQuote(id) {
       const data = await get<{ quote: SupplierQuote }>(`/api/buyer/quotes/${id}`);
       return data.quote;
+    },
+    async buildComparison(eventId, eventLines, input) {
+      const data = await post<{ snapshot: ComparisonSnapshot }>(`/api/buyer/events/${eventId}/comparisons`, { ...input, eventLines });
+      return data.snapshot;
+    },
+    async getLatestComparison(eventId) {
+      try {
+        const data = await get<{ snapshot: ComparisonSnapshot }>(`/api/buyer/events/${eventId}/comparisons/latest`);
+        return data.snapshot;
+      } catch {
+        return null;
+      }
+    },
+    async listComparisons(eventId) {
+      const data = await get<{ snapshots: ComparisonSnapshot[] }>(`/api/buyer/events/${eventId}/comparisons`);
+      return data.snapshots;
+    },
+    async setManualTechnicalScore(snapshotId, supplierId, score, comment) {
+      const data = await patch<{ snapshot: ComparisonSnapshot }>(`/api/buyer/comparisons/${snapshotId}/scores/${supplierId}`, { score, comment });
+      return data.snapshot;
     },
   };
 }
