@@ -4,6 +4,17 @@ import type { SupplierInvitation } from '../../server/types/invitation';
 import type { SupplierQuote } from '../../server/types/quote';
 import type { BuyerApiClient } from '../api/buyerApiClient';
 
+const POLL_INTERVAL_MS = 20_000;
+
+function portalUrl(token: string): string {
+  return `${window.location.origin}/portal?token=${token}`;
+}
+
+function invitationMessage(event: SourcingEvent, supplierName: string, token: string, expiresAt?: string): string {
+  const expiry = expiresAt ? ` This link expires on ${new Date(expiresAt).toLocaleDateString()}.` : '';
+  return `Hi ${supplierName},\n\nYou're invited to submit a quote for ${event.reference} — ${event.title}.\n\nPlease use this secure link to review the request and submit your quote: ${portalUrl(token)}${expiry}\n\nThanks,\nAriavel Sourcing`;
+}
+
 const STATUS_LABEL: Record<SupplierInvitation['status'], string> = {
   CREATED: 'Invited',
   OPENED: 'Opened',
@@ -31,12 +42,14 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [portalTokens, setPortalTokens] = useState<Record<string, string>>({});
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!apiClient) return;
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     setError(null);
     try {
       const [invs, qs] = await Promise.all([
@@ -45,14 +58,26 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
       ]);
       setInvitations(invs);
       setQuotes(qs);
+      setLastUpdated(new Date());
     } catch {
-      setError('Failed to load invitations');
+      if (!opts.silent) setError('Failed to load invitations');
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, [apiClient, event.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Bounded, visibility-aware polling — pauses when the tab/drawer isn't visible,
+  // so buyers see supplier activity (opened/submitted) without a manual reload,
+  // and without polling storms while the page is backgrounded.
+  useEffect(() => {
+    if (!apiClient) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') void load({ silent: true });
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [apiClient, load]);
 
   async function sendInvitation(supplier: SourcingSupplierSelection) {
     if (!apiClient) return;
@@ -98,10 +123,21 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
   }
 
   function copyLink(invId: string, token: string) {
-    const url = `${window.location.origin}/portal?token=${token}`;
-    navigator.clipboard.writeText(url).catch(() => undefined);
+    navigator.clipboard.writeText(portalUrl(token)).catch(() => undefined);
     setCopiedId(invId);
     setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  function copyMessage(inv: SupplierInvitation, token: string) {
+    navigator.clipboard.writeText(invitationMessage(event, inv.supplierNameSnapshot, token, inv.expiresAt)).catch(() => undefined);
+    setCopiedMessageId(inv.id);
+    setTimeout(() => setCopiedMessageId(null), 2000);
+  }
+
+  function mailtoHref(inv: SupplierInvitation, token: string): string {
+    const subject = `Quote request: ${event.reference} — ${event.title}`;
+    const body = invitationMessage(event, inv.supplierNameSnapshot, token, inv.expiresAt);
+    return `mailto:${encodeURIComponent(inv.supplierEmailSnapshot)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   if (!serverAvailable) {
@@ -150,7 +186,7 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                   disabled={loading || !s.emailSnapshot}
                   title={!s.emailSnapshot ? 'Supplier has no email on file' : undefined}
                 >
-                  Send invitation
+                  Generate invitation link
                 </button>
               </li>
             ))}
@@ -159,9 +195,12 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
       )}
 
       <div className="inv-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <h4>Invitations ({invitations.length})</h4>
-          {loading && <span style={{ fontSize: 12, color: '#667286' }}>Loading…</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {lastUpdated && <span className="settings-row-note">Last updated {lastUpdated.toLocaleTimeString()}</span>}
+            <button className="secondary-button small" onClick={() => load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+          </div>
         </div>
         {invitations.length === 0 && !loading && (
           <p style={{ color: '#667286', fontSize: 13 }}>No invitations sent yet.</p>
@@ -170,7 +209,7 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
           {invitations.map(inv => {
             const quote = quoteByInv.get(inv.id);
             const token = portalTokens[inv.id];
-            const canCopy = !!token && inv.status !== 'REVOKED' && inv.status !== 'EXPIRED';
+            const canDeliver = !!token && inv.status !== 'REVOKED' && inv.status !== 'EXPIRED';
             return (
               <li key={inv.id} className="inv-row">
                 <div className="inv-row-info">
@@ -178,13 +217,9 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                   <small style={{ color: '#667286', marginLeft: 6 }}>{inv.supplierEmailSnapshot}</small>
                   <span className={`inv-status ${statusClass(inv.status)}`}>{STATUS_LABEL[inv.status]}</span>
                   {quote && <span className="inv-quote-badge">Quote: {quote.status === 'SUBMITTED' ? '✓ Submitted' : '⏳ Draft'}</span>}
+                  {inv.expiresAt && <small className="settings-row-note" style={{ marginLeft: 6 }}>Expires {new Date(inv.expiresAt).toLocaleDateString()}</small>}
                 </div>
                 <div className="inv-row-actions">
-                  {canCopy && (
-                    <button className="secondary-button small" onClick={() => copyLink(inv.id, token)}>
-                      {copiedId === inv.id ? 'Copied!' : 'Copy link'}
-                    </button>
-                  )}
                   {inv.status !== 'REVOKED' && inv.status !== 'SUBMITTED' && inv.status !== 'EXPIRED' && (
                     <>
                       <button
@@ -200,6 +235,18 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                     </>
                   )}
                 </div>
+                {canDeliver && (
+                  <div className="inv-delivery-banner">
+                    <span className="settings-badge badge-neutral">Link generated — not automatically sent</span>
+                    <button className="secondary-button small" onClick={() => copyLink(inv.id, token)}>
+                      {copiedId === inv.id ? 'Copied!' : 'Copy link'}
+                    </button>
+                    <button className="secondary-button small" onClick={() => copyMessage(inv, token)}>
+                      {copiedMessageId === inv.id ? 'Copied!' : 'Copy invitation message'}
+                    </button>
+                    <a className="secondary-button small" href={mailtoHref(inv, token)}>Open email draft</a>
+                  </div>
+                )}
               </li>
             );
           })}
