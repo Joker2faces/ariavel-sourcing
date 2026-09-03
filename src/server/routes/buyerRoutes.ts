@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import type { InvitationService } from '../services/invitationService.js';
 import type { QuoteService } from '../services/quoteService.js';
 import { InvitationNotFoundError, InvitationInvalidStatusError } from '../services/invitationService.js';
-import { tenantIdFromAuth } from '../middleware/buyerAuth.js';
+import { tenantIdFromAuth, userIdFromAuth } from '../middleware/buyerAuth.js';
 
 function param(req: Request, key: string): string {
   return req.params[key] as string;
@@ -27,20 +27,20 @@ export function createBuyerRouter(
   router.post('/events/:eventId/invitations', async (req: Request, res: Response) => {
     try {
       const tenantId = tenantIdFromAuth(req);
-      const userId = String(req.buyerAuth!.userId);
+      const userId = userIdFromAuth(req);
       const eventId = param(req, 'eventId');
-      const body = req.body as {
-        eventReference: string;
-        eventTitleSnapshot: string;
-        supplierId: string;
-        supplierNameSnapshot: string;
-        supplierEmailSnapshot: string;
-        supplierCodeSnapshot?: string;
-        expiresAt?: string;
+      // Explicitly pick only known InvitationInput fields — never trust tenantId/userId from body
+      const {
+        eventReference, eventTitleSnapshot, supplierId, supplierNameSnapshot,
+        supplierEmailSnapshot, supplierCodeSnapshot, expiresAt,
+      } = req.body as {
+        eventReference: string; eventTitleSnapshot: string; supplierId: string;
+        supplierNameSnapshot: string; supplierEmailSnapshot: string;
+        supplierCodeSnapshot?: string; expiresAt?: string;
       };
       const { invitation, rawToken } = await invitationService.create(
         tenantId,
-        { eventId, ...body },
+        { eventId, eventReference, eventTitleSnapshot, supplierId, supplierNameSnapshot, supplierEmailSnapshot, supplierCodeSnapshot, expiresAt },
         userId,
       );
       res.status(201).json({ invitation, portalToken: rawToken });
@@ -52,7 +52,7 @@ export function createBuyerRouter(
   router.post('/invitations/:id/revoke', async (req: Request, res: Response) => {
     try {
       const tenantId = tenantIdFromAuth(req);
-      const userId = String(req.buyerAuth!.userId);
+      const userId = userIdFromAuth(req);
       const invitation = await invitationService.revoke(tenantId, param(req, 'id'), userId);
       res.json({ invitation });
     } catch (err) {
@@ -65,7 +65,7 @@ export function createBuyerRouter(
   router.post('/invitations/:id/regenerate', async (req: Request, res: Response) => {
     try {
       const tenantId = tenantIdFromAuth(req);
-      const userId = String(req.buyerAuth!.userId);
+      const userId = userIdFromAuth(req);
       const { invitation, rawToken } = await invitationService.regenerate(tenantId, param(req, 'id'), userId);
       res.json({ invitation, portalToken: rawToken });
     } catch (err) {

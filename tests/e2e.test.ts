@@ -13,12 +13,12 @@ import { createInMemoryInvitationRepository } from '../src/server/db/inMemoryInv
 import { createInMemoryQuoteRepository } from '../src/server/db/inMemoryQuoteRepository';
 import { createInMemoryAuditRepository } from '../src/server/db/inMemoryAuditRepository';
 
-const SIGNING_SECRET = 'e2e-test-signing-secret-minimum-32-chars!!';
+const CLIENT_SECRET = 'e2e-test-client-secret-minimum-32-chars!!!';
 const ACCOUNT_ID = 5555;
 const USER_ID = 1;
 
 function makeBuyerToken() {
-  return jwt.sign({ accountId: ACCOUNT_ID, userId: USER_ID, shortLivedToken: 'slt' }, SIGNING_SECRET, { expiresIn: '1h' });
+  return jwt.sign({ dat: { account_id: ACCOUNT_ID, user_id: USER_ID, short_lived_token: 'slt' } }, CLIENT_SECRET, { expiresIn: '1h' });
 }
 
 describe('E2E: Full RFQ invitation and quote submission flow', () => {
@@ -29,7 +29,7 @@ describe('E2E: Full RFQ invitation and quote submission flow', () => {
     const auditRepo = createInMemoryAuditRepository();
     const invService = createInvitationService(invRepo, auditRepo);
     const quoteService = createQuoteService(quoteRepo, auditRepo);
-    const app = createApp(invService, quoteService, SIGNING_SECRET);
+    const app = createApp(invService, quoteService, CLIENT_SECRET);
     const buyerToken = makeBuyerToken();
 
     // Step 1: Health check

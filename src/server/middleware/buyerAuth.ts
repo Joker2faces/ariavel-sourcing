@@ -1,24 +1,16 @@
 import { type Request, type Response, type NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-
-export interface BuyerJwtPayload {
-  accountId: number;
-  userId: number;
-  shortLivedToken: string;
-  iat?: number;
-  exp?: number;
-}
+import { verifyBuyerSessionToken, MondaySessionAuthError, type MondayViewSession } from '../auth/mondaySessionAuth.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      buyerAuth?: BuyerJwtPayload;
+      buyerAuth?: MondayViewSession;
     }
   }
 }
 
-export function createBuyerAuthMiddleware(signingSecret: string) {
+export function createBuyerAuthMiddleware(clientSecret: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -27,11 +19,14 @@ export function createBuyerAuthMiddleware(signingSecret: string) {
     }
     const token = authHeader.slice(7);
     try {
-      const payload = jwt.verify(token, signingSecret) as BuyerJwtPayload;
-      req.buyerAuth = payload;
+      req.buyerAuth = verifyBuyerSessionToken(token, clientSecret);
       next();
-    } catch {
-      res.status(401).json({ error: 'Invalid or expired token' });
+    } catch (err) {
+      if (err instanceof MondaySessionAuthError) {
+        res.status(401).json({ error: err.message });
+      } else {
+        res.status(401).json({ error: 'Authentication failed' });
+      }
     }
   };
 }
@@ -39,4 +34,9 @@ export function createBuyerAuthMiddleware(signingSecret: string) {
 export function tenantIdFromAuth(req: Request): string {
   if (!req.buyerAuth) throw new Error('No buyer auth on request');
   return `monday-account-${req.buyerAuth.accountId}`;
+}
+
+export function userIdFromAuth(req: Request): string {
+  if (!req.buyerAuth) throw new Error('No buyer auth on request');
+  return String(req.buyerAuth.userId);
 }

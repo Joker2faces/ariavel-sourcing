@@ -14,7 +14,7 @@ const BUYER_RATE_LIMIT = rateLimit({ windowMs: 60_000, max: 200, standardHeaders
 export function createApp(
   invitationService: InvitationService,
   quoteService: QuoteService,
-  signingSecret: string,
+  clientSecret: string,
 ) {
   const app = express();
 
@@ -22,9 +22,11 @@ export function createApp(
   app.use(cors({ origin: false }));
   app.use(express.json({ limit: '256kb' }));
 
-  app.get('/health', (_req, res) => { res.json({ status: 'ok' }); });
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'ariavel-sourcing' });
+  });
 
-  const buyerAuth = createBuyerAuthMiddleware(signingSecret);
+  const buyerAuth = createBuyerAuthMiddleware(clientSecret);
 
   app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerRouter(invitationService, quoteService));
   app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalRouter(invitationService, quoteService));

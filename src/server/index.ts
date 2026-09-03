@@ -6,12 +6,14 @@ import { createInvitationService } from './services/invitationService.js';
 import { createQuoteService } from './services/quoteService.js';
 import { createApp } from './app.js';
 
-const PORT = 8080;
+const PORT = Number(process.env['PORT'] ?? 8080);
 
 async function start() {
-  const signingSecret = process.env['MONDAY_SIGNING_SECRET'];
-  if (!signingSecret) {
-    console.error('MONDAY_SIGNING_SECRET is required');
+  // MONDAY_CLIENT_SECRET is used to verify monday.get("sessionToken") JWTs.
+  // This is the app CLIENT SECRET from Developer Center, NOT the Signing Secret.
+  const clientSecret = process.env['MONDAY_CLIENT_SECRET'];
+  if (!clientSecret) {
+    console.error('MONDAY_CLIENT_SECRET is required (used to verify buyer session tokens)');
     process.exit(1);
   }
 
@@ -22,13 +24,14 @@ async function start() {
   const invService = createInvitationService(invRepo, auditRepo);
   const quoteService = createQuoteService(quoteRepo, auditRepo);
 
-  const app = createApp(invService, quoteService, signingSecret);
+  const app = createApp(invService, quoteService, clientSecret);
 
   const server = app.listen(PORT, () => {
-    console.log(`Ariavel Sourcing server running on port ${PORT}`);
+    console.log(JSON.stringify({ level: 'info', msg: `Ariavel Sourcing server listening`, port: PORT }));
   });
 
   const shutdown = async () => {
+    console.log(JSON.stringify({ level: 'info', msg: 'Shutdown signal received' }));
     server.close();
     await closeDb();
     process.exit(0);
@@ -38,6 +41,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  console.error('Failed to start server:', err);
+  console.error(JSON.stringify({ level: 'error', msg: 'Failed to start server', error: String(err) }));
   process.exit(1);
 });

@@ -25,10 +25,11 @@ export function createInvitationRepository(db: Db): InvitationRepository {
 
   return {
     async create(tenantId, input, tokenHash, createdByUserId, now) {
+      // tenantId/createdByUserId placed AFTER spread to guarantee JWT-derived values always win
       const doc: SupplierInvitation = {
+        ...input,
         id: new ObjectId().toHexString(),
         tenantId,
-        ...input,
         tokenHash,
         status: 'CREATED',
         createdAt: now,

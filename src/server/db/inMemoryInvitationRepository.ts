@@ -10,7 +10,8 @@ export function createInMemoryInvitationRepository(seed: SupplierInvitation[] = 
 
   return {
     async create(tenantId, input, tokenHash, createdByUserId, now) {
-      const doc: SupplierInvitation = { id: genId(), tenantId, ...input, tokenHash, status: 'CREATED', createdAt: now, updatedAt: now, createdByUserId };
+      // tenantId/createdByUserId placed AFTER spread to guarantee JWT-derived values always win
+      const doc: SupplierInvitation = { ...input, id: genId(), tenantId, tokenHash, status: 'CREATED', createdAt: now, updatedAt: now, createdByUserId };
       store.set(doc.id, doc);
       byHash.set(tokenHash, doc.id);
       return { ...doc };

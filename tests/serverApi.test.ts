@@ -9,7 +9,8 @@ import { createInMemoryInvitationRepository } from '../src/server/db/inMemoryInv
 import { createInMemoryQuoteRepository } from '../src/server/db/inMemoryQuoteRepository';
 import { createInMemoryAuditRepository } from '../src/server/db/inMemoryAuditRepository';
 
-const SIGNING_SECRET = 'test-signing-secret-minimum-32-chars-long!!';
+// Monday session tokens are signed with the CLIENT SECRET, not the Signing Secret.
+const CLIENT_SECRET = 'test-client-secret-minimum-32-chars-long!!';
 const TENANT_ACCOUNT_ID = 9999;
 const USER_ID = 42;
 
@@ -19,12 +20,13 @@ function makeApp() {
   const auditRepo = createInMemoryAuditRepository();
   const invService = createInvitationService(invRepo, auditRepo);
   const quoteService = createQuoteService(quoteRepo, auditRepo);
-  const app = createApp(invService, quoteService, SIGNING_SECRET);
+  const app = createApp(invService, quoteService, CLIENT_SECRET);
   return { app, invService };
 }
 
+// Monday session tokens carry payload under the 'dat' field: { dat: { account_id, user_id } }
 function makeBuyerToken(accountId = TENANT_ACCOUNT_ID, userId = USER_ID) {
-  return jwt.sign({ accountId, userId, shortLivedToken: 'slt' }, SIGNING_SECRET, { expiresIn: '1h' });
+  return jwt.sign({ dat: { account_id: accountId, user_id: userId, short_lived_token: 'slt' } }, CLIENT_SECRET, { expiresIn: '1h' });
 }
 
 const baseInvBody = {
@@ -54,20 +56,70 @@ describe('Server API', () => {
 
     it('rejects expired JWT', async () => {
       const { app } = makeApp();
-      const token = jwt.sign({ accountId: TENANT_ACCOUNT_ID, userId: USER_ID, shortLivedToken: 'slt' }, SIGNING_SECRET, { expiresIn: '-1s' });
+      const token = jwt.sign({ dat: { account_id: TENANT_ACCOUNT_ID, user_id: USER_ID } }, CLIENT_SECRET, { expiresIn: '-1s' });
       const res = await request(app)
         .get('/api/buyer/events/event-1/invitations')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(401);
     });
 
-    it('rejects JWT signed with wrong secret', async () => {
+    it('rejects JWT signed with wrong secret (signing secret cannot impersonate buyer)', async () => {
       const { app } = makeApp();
-      const token = jwt.sign({ accountId: TENANT_ACCOUNT_ID, userId: USER_ID }, 'wrong-secret');
+      // Using SIGNING_SECRET instead of CLIENT_SECRET must fail
+      const SIGNING_SECRET = 'completely-different-signing-secret-value!!';
+      const token = jwt.sign({ dat: { account_id: TENANT_ACCOUNT_ID, user_id: USER_ID } }, SIGNING_SECRET);
       const res = await request(app)
         .get('/api/buyer/events/event-1/invitations')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(401);
+    });
+
+    it('rejects token with missing dat field', async () => {
+      const { app } = makeApp();
+      const token = jwt.sign({ accountId: TENANT_ACCOUNT_ID, userId: USER_ID }, CLIENT_SECRET);
+      const res = await request(app)
+        .get('/api/buyer/events/event-1/invitations')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects token with missing account_id', async () => {
+      const { app } = makeApp();
+      const token = jwt.sign({ dat: { user_id: USER_ID } }, CLIENT_SECRET);
+      const res = await request(app)
+        .get('/api/buyer/events/event-1/invitations')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects token with missing user_id', async () => {
+      const { app } = makeApp();
+      const token = jwt.sign({ dat: { account_id: TENANT_ACCOUNT_ID } }, CLIENT_SECRET);
+      const res = await request(app)
+        .get('/api/buyer/events/event-1/invitations')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects malformed Bearer token', async () => {
+      const { app } = makeApp();
+      const res = await request(app)
+        .get('/api/buyer/events/event-1/invitations')
+        .set('Authorization', 'Bearer not.a.valid.jwt');
+      expect(res.status).toBe(401);
+    });
+
+    it('derives tenantId from verified token — buyer cannot inject different tenant', async () => {
+      const { app } = makeApp();
+      const token = makeBuyerToken(9999, USER_ID);
+      // Even if body contains a different tenantId, it must be ignored
+      const createRes = await request(app)
+        .post('/api/buyer/events/event-1/invitations')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...baseInvBody, tenantId: 'malicious-tenant' });
+      expect(createRes.status).toBe(201);
+      // The invitation's tenantId comes from the JWT, not the body
+      expect(createRes.body.invitation.tenantId).toBe('monday-account-9999');
     });
   });
 
