@@ -38,6 +38,7 @@ function mockClient(overrides: Partial<BuyerApiClient> = {}): BuyerApiClient {
     listAwardScenarios: vi.fn(), getAwardScenario: vi.fn(),
     awardLine: vi.fn(), clearAwardLine: vi.fn(), markAwardLineNoAward: vi.fn(),
     removeAwardLineAllocation: vi.fn(), finalizeAwardScenario: vi.fn(),
+    listAuditEvents: vi.fn(), exportAuditCsv: vi.fn(),
     ...overrides,
   };
 }

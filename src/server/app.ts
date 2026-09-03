@@ -10,6 +10,7 @@ import type { BidComparisonService } from './services/bidComparisonService.js';
 import type { AwardService } from './services/awardService.js';
 import type { DocumentService } from './services/documentService.js';
 import type { TenantSettingsService } from './services/tenantSettingsService.js';
+import type { AuditService } from './services/auditService.js';
 import { createBuyerAuthMiddleware } from './middleware/buyerAuth.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { noSqlInjectionMiddleware } from './middleware/noSqlInjection.js';
@@ -17,6 +18,7 @@ import { createBuyerRouter } from './routes/buyerRoutes.js';
 import { createPortalRouter } from './routes/portalRoutes.js';
 import { createBuyerDocumentRouter, createPortalDocumentRouter } from './routes/documentRoutes.js';
 import { createSettingsRouter } from './routes/settingsRoutes.js';
+import { createAuditRouter } from './routes/auditRoutes.js';
 import { createDevStorageRouter } from './routes/devStorageRoutes.js';
 import type { InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
 import type { AttachmentRepository } from './db/attachmentRepository.js';
@@ -39,6 +41,7 @@ export function createApp(
   healthDeps?: HealthDependencies,
   devStorage?: { provider: InMemoryObjectStorageProvider; attachmentRepo: AttachmentRepository },
   settingsService?: TenantSettingsService,
+  auditService?: AuditService,
 ) {
   const app = express();
 
@@ -102,6 +105,9 @@ export function createApp(
   app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalRouter(invitationService, quoteService));
   if (settingsService) {
     app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createSettingsRouter(settingsService));
+  }
+  if (auditService) {
+    app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createAuditRouter(auditService));
   }
 
   if (devStorage) {

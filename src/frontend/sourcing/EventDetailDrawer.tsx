@@ -6,6 +6,7 @@ import type { BuyerApiClient } from '../api/buyerApiClient';
 import { formatDeadlineDisplay, isOverdue, isClosingSoon } from '../../shared/utils/deadline';
 import { InvitationsPanel } from './InvitationsPanel';
 import { ComparisonPanel } from './ComparisonPanel';
+import { ActivityPanel } from './ActivityPanel';
 
 const STATUS_LABEL: Record<SourcingEventStatus, string> = {
   DRAFT: 'Draft',
@@ -35,7 +36,7 @@ export function EventDetailDrawer({
   onEdit?: () => void;
   onStatusChange?: (status: SourcingEventStatus) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers' | 'invitations' | 'comparison'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers' | 'invitations' | 'comparison' | 'activity'>('overview');
   const { valid: readyValid } = service.validateReady(event);
 
   const deadlineClass = event.deadline
@@ -74,7 +75,7 @@ export function EventDetailDrawer({
           </div>
 
           <nav className="detail-tabs" role="tablist" aria-label="Event details sections">
-            {(['overview', 'lines', 'suppliers', 'invitations', 'comparison'] as const).map(tab => (
+            {(['overview', 'lines', 'suppliers', 'invitations', 'comparison', 'activity'] as const).map(tab => (
               <button
                 key={tab}
                 role="tab"
@@ -86,7 +87,8 @@ export function EventDetailDrawer({
                   : tab === 'lines' ? `Lines (${event.lines.length})`
                   : tab === 'suppliers' ? `Suppliers (${event.supplierSelections.length})`
                   : tab === 'invitations' ? 'Invitations'
-                  : 'Comparison'}
+                  : tab === 'comparison' ? 'Comparison'
+                  : 'Activity'}
               </button>
             ))}
           </nav>
@@ -183,6 +185,14 @@ export function EventDetailDrawer({
 
           {activeTab === 'comparison' && (
             <ComparisonPanel
+              event={event}
+              apiClient={apiClient ?? null}
+              serverAvailable={serverAvailable ?? false}
+            />
+          )}
+
+          {activeTab === 'activity' && (
+            <ActivityPanel
               event={event}
               apiClient={apiClient ?? null}
               serverAvailable={serverAvailable ?? false}

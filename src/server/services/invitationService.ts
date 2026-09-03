@@ -28,7 +28,7 @@ export function createInvitationService(
       const tokenHash = hashToken(rawToken);
       const n = now();
       const invitation = await invRepo.create(tenantId, input, tokenHash, createdByUserId, n);
-      await auditRepo.log(tenantId, 'INVITATION_CREATED', invitation.id, 'invitation', 'buyer', createdByUserId, n, { supplierId: input.supplierId, eventId: input.eventId });
+      await auditRepo.log(tenantId, 'INVITATION_CREATED', invitation.id, 'invitation', 'buyer', createdByUserId, n, input.eventId, { supplierId: input.supplierId });
       return { invitation, rawToken };
     },
 
@@ -45,7 +45,7 @@ export function createInvitationService(
       const n = now();
       if (invitation.status === 'CREATED') {
         const updated = await invRepo.updateStatus(invitation.tenantId, invitation.id, 'OPENED', { openedAt: n }, n);
-        await auditRepo.log(invitation.tenantId, 'INVITATION_OPENED', invitation.id, 'invitation', 'supplier', invitation.supplierId, n);
+        await auditRepo.log(invitation.tenantId, 'INVITATION_OPENED', invitation.id, 'invitation', 'supplier', invitation.supplierId, n, invitation.eventId);
         return updated!;
       }
       return invitation;
@@ -58,7 +58,7 @@ export function createInvitationService(
       if (invitation.status === 'REVOKED') throw new InvitationInvalidStatusError('Already revoked');
       const n = now();
       const updated = await invRepo.updateStatus(tenantId, id, 'REVOKED', { revokedAt: n, revokedByUserId }, n);
-      await auditRepo.log(tenantId, 'INVITATION_REVOKED', id, 'invitation', 'buyer', revokedByUserId, n);
+      await auditRepo.log(tenantId, 'INVITATION_REVOKED', id, 'invitation', 'buyer', revokedByUserId, n, invitation.eventId);
       return updated!;
     },
 
@@ -71,7 +71,7 @@ export function createInvitationService(
       const tokenHash = hashToken(rawToken);
       const n = now();
       const updated = await invRepo.replaceToken(tenantId, id, tokenHash, userId, n);
-      await auditRepo.log(tenantId, 'INVITATION_REGENERATED', id, 'invitation', 'buyer', userId, n);
+      await auditRepo.log(tenantId, 'INVITATION_REGENERATED', id, 'invitation', 'buyer', userId, n, invitation.eventId);
       return { invitation: updated!, rawToken };
     },
 

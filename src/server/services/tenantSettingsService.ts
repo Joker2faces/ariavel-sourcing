@@ -44,7 +44,7 @@ export function createTenantSettingsService(
       const merged = mergeSettings(current, input, now, userId);
       const saved = await repo.setWithVersion(merged, expectedVersion);
       if (!saved) throw new SettingsConflictError();
-      await auditRepo.log(tenantId, 'SETTINGS_UPDATED', tenantId, 'settings', 'buyer', userId, now, {
+      await auditRepo.log(tenantId, 'SETTINGS_UPDATED', tenantId, 'settings', 'buyer', userId, now, undefined, {
         fields: Object.keys(input).join(','),
       });
       return saved;

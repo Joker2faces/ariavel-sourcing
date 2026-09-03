@@ -222,7 +222,7 @@ export function createAwardService(
         notes: input.notes,
       };
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_SCENARIO_CREATED', scenario.id, 'award_scenario', 'buyer', userId, now, { recommended: true });
+      await auditRepo.log(tenantId, 'AWARD_SCENARIO_CREATED', scenario.id, 'award_scenario', 'buyer', userId, now, eventId, { recommended: true });
       return scenario;
     },
 
@@ -245,7 +245,7 @@ export function createAwardService(
         notes: input.notes,
       };
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_SCENARIO_CREATED', scenario.id, 'award_scenario', 'buyer', userId, now, { recommended: false });
+      await auditRepo.log(tenantId, 'AWARD_SCENARIO_CREATED', scenario.id, 'award_scenario', 'buyer', userId, now, eventId, { recommended: false });
       return scenario;
     },
 
@@ -306,7 +306,7 @@ export function createAwardService(
       scenario.awardType = deriveAwardType(scenario.lines);
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_LINE_SET', scenario.id, 'award_scenario', 'buyer', userId, now, {
+      await auditRepo.log(tenantId, 'AWARD_LINE_SET', scenario.id, 'award_scenario', 'buyer', userId, now, scenario.eventId, {
         lineId, supplierId, quantity, isOverride, split: awardLine.allocations.length > 1, ...(overrideReason ? { overrideReason } : {}),
       });
       return scenario;
@@ -328,7 +328,7 @@ export function createAwardService(
       scenario.awardType = deriveAwardType(scenario.lines);
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId });
+      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, scenario.eventId, { lineId });
       return scenario;
     },
 
@@ -347,7 +347,7 @@ export function createAwardService(
       scenario.awardType = deriveAwardType(scenario.lines);
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId, noAward: true });
+      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, scenario.eventId, { lineId, noAward: true });
       return scenario;
     },
 
@@ -369,7 +369,7 @@ export function createAwardService(
       scenario.awardType = deriveAwardType(scenario.lines);
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId, supplierId });
+      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, scenario.eventId, { lineId, supplierId });
       return scenario;
     },
 
@@ -390,7 +390,7 @@ export function createAwardService(
       scenario.updatedAt = now;
 
       await awardRepo.save(scenario);
-      await auditRepo.log(tenantId, 'AWARD_SCENARIO_FINALIZED', scenario.id, 'award_scenario', 'buyer', userId, now, {
+      await auditRepo.log(tenantId, 'AWARD_SCENARIO_FINALIZED', scenario.id, 'award_scenario', 'buyer', userId, now, scenario.eventId, {
         awardedLines: scenario.summary.awardedLineCount,
         totalCost: scenario.summary.totalAllocatedCost,
       });

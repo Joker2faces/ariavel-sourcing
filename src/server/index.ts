@@ -12,6 +12,7 @@ import { createAttachmentRepository } from './db/attachmentRepository.js';
 import { createDocumentService } from './services/documentService.js';
 import { createTenantSettingsRepository } from './db/tenantSettingsRepository.js';
 import { createTenantSettingsService } from './services/tenantSettingsService.js';
+import { createAuditService } from './services/auditService.js';
 import { createInMemoryTenantSettingsRepository } from './db/inMemoryTenantSettingsRepository.js';
 import { createInMemoryInvitationRepository } from './db/inMemoryInvitationRepository.js';
 import { createInMemoryQuoteRepository } from './db/inMemoryQuoteRepository.js';
@@ -85,6 +86,7 @@ async function start() {
   const bidComparisonService = createBidComparisonService(invRepo, quoteService, compRepo);
   const awardService = createAwardService(awardRepo, compRepo, auditRepo);
   const settingsService = createTenantSettingsService(settingsRepo, auditRepo);
+  const auditService = createAuditService(auditRepo);
 
   // OBJECT_STORAGE_BUCKET is auto-injected by monday Code once the app is deployed there.
   // Before that (local dev, tests, first-release bootstrap) fall back to an in-memory
@@ -105,6 +107,7 @@ async function start() {
     invService, quoteService, clientSecret, bidComparisonService, awardService, documentService, healthDeps,
     inMemoryStorage ? { provider: inMemoryStorage, attachmentRepo } : undefined,
     settingsService,
+    auditService,
   );
 
   const server = app.listen(PORT, () => {

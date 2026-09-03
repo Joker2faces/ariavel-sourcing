@@ -4,6 +4,7 @@ import type { ComparisonSnapshot, ComparisonInput } from '../../shared/types/bid
 import type { SourcingLine } from '../../shared/types/domain';
 import type { TenantSettings, TenantSettingsInput } from '../../shared/types/tenantSettings';
 import type { AwardScenario, AwardScenarioInput } from '../../shared/types/award';
+import type { AuditEvent } from '../../server/types/audit';
 
 export interface BuyerApiClient {
   listInvitations(eventId: string): Promise<SupplierInvitation[]>;
@@ -27,6 +28,8 @@ export interface BuyerApiClient {
   markAwardLineNoAward(scenarioId: string, lineId: string): Promise<AwardScenario>;
   removeAwardLineAllocation(scenarioId: string, lineId: string, supplierId: string): Promise<AwardScenario>;
   finalizeAwardScenario(scenarioId: string): Promise<AwardScenario>;
+  listAuditEvents(eventId: string): Promise<AuditEvent[]>;
+  exportAuditCsv(eventId: string): Promise<Blob>;
 }
 
 export interface CreateInvitationBody {
@@ -169,6 +172,15 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
     async finalizeAwardScenario(scenarioId) {
       const data = await post<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${scenarioId}/finalize`);
       return data.scenario;
+    },
+    async listAuditEvents(eventId) {
+      const data = await get<{ events: AuditEvent[] }>(`/api/buyer/audit?eventId=${encodeURIComponent(eventId)}`);
+      return data.events;
+    },
+    async exportAuditCsv(eventId) {
+      const res = await fetch(`${baseUrl}/api/buyer/audit/export.csv?eventId=${encodeURIComponent(eventId)}`, { headers: await headers() });
+      if (!res.ok) throw new Error(`API error ${res.status}: audit export`);
+      return res.blob();
     },
   };
 }

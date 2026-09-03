@@ -34,7 +34,7 @@ export function createQuoteService(
         input,
         n,
       );
-      await auditRepo.log(invitation.tenantId, 'QUOTE_DRAFT_SAVED', quote.id, 'quote', 'supplier', invitation.supplierId, n, { invitationId: invitation.id });
+      await auditRepo.log(invitation.tenantId, 'QUOTE_DRAFT_SAVED', quote.id, 'quote', 'supplier', invitation.supplierId, n, invitation.eventId, { invitationId: invitation.id });
       return quote;
     },
 
@@ -42,7 +42,7 @@ export function createQuoteService(
       const n = now();
       const quote = await quoteRepo.submit(invitation.tenantId, invitation.id, n);
       if (!quote) throw new QuoteNotFoundError();
-      await auditRepo.log(invitation.tenantId, 'QUOTE_SUBMITTED', quote.id, 'quote', 'supplier', invitation.supplierId, n, { invitationId: invitation.id });
+      await auditRepo.log(invitation.tenantId, 'QUOTE_SUBMITTED', quote.id, 'quote', 'supplier', invitation.supplierId, n, invitation.eventId, { invitationId: invitation.id });
       return quote;
     },
 

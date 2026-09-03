@@ -26,5 +26,7 @@ export interface AuditEvent {
   actorType: 'buyer' | 'supplier';
   actorId: string;
   timestamp: string;
+  /** The sourcing event this activity relates to, when applicable (not every action is event-scoped, e.g. settings changes). */
+  eventId?: string;
   metadata?: Record<string, string | number | boolean>;
 }

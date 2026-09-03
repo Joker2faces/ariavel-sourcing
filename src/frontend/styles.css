@@ -342,6 +342,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .award-line-cost { font-weight: 700; font-variant-numeric: tabular-nums; }
 .award-allocate-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .award-no-bid { display: flex; align-items: center; gap: 10px; }
+.activity-panel { display: flex; flex-direction: column; gap: 14px; }
+.activity-toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
+.activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.activity-item { display: grid; grid-template-columns: 160px 1fr auto; gap: 12px; align-items: center; background: #fff; border: 1px solid #e6e9ee; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+.activity-time { color: #667286; font-variant-numeric: tabular-nums; }
+.activity-actor { color: #667286; text-align: right; }
 .bid-matrix { display: flex; flex-direction: column; gap: 20px; }
 .bid-matrix-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .bid-matrix-view-tabs { display: flex; gap: 4px; background: #f0f3f7; padding: 4px; border-radius: 7px; }
