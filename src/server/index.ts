@@ -23,14 +23,19 @@ import { createInMemoryComparisonRepository } from './db/inMemoryComparisonRepos
 import { createInMemoryAwardRepository } from './db/inMemoryAwardRepository.js';
 import { createInMemoryAttachmentRepository } from './db/inMemoryAttachmentRepository.js';
 import { createMondayObjectStorageProvider, createInMemoryObjectStorageProvider, type ObjectStorageProvider, type InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
+import { createDefaultSecretProvider } from './secrets/secretProvider.js';
 import { createApp, type HealthDependencies } from './app.js';
 
 const PORT = Number(process.env['PORT'] ?? 8080);
 
 async function start() {
-  // MONDAY_CLIENT_SECRET verifies monday.get("sessionToken") JWTs.
-  // When absent (first-release bootstrap), buyer API returns 503 — auth is NOT bypassed.
-  const clientSecret = process.env['MONDAY_CLIENT_SECRET'] ?? '';
+  // MONDAY_CLIENT_SECRET verifies monday.get("sessionToken") JWTs. It is a
+  // monday Code Secret, not an Environment Variable — read via SecretsManager
+  // (see secretProvider.ts), never directly from process.env in production.
+  // When absent (first-release bootstrap, or genuinely misconfigured), buyer
+  // API returns 503 — auth is NOT bypassed.
+  const secretProvider = await createDefaultSecretProvider();
+  const clientSecret = (await secretProvider.get('MONDAY_CLIENT_SECRET')) ?? '';
   if (!clientSecret) {
     console.warn(JSON.stringify({
       level: 'warn',
