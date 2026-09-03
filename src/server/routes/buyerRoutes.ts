@@ -2,6 +2,8 @@ import { Router, type Request, type Response } from 'express';
 import type { InvitationService } from '../services/invitationService.js';
 import type { QuoteService } from '../services/quoteService.js';
 import type { BidComparisonService } from '../services/bidComparisonService.js';
+import type { AwardService } from '../services/awardService.js';
+import { AwardScenarioNotFoundError, AwardScenarioFinalizedError, AwardValidationError } from '../services/awardService.js';
 import { InvitationNotFoundError, InvitationInvalidStatusError } from '../services/invitationService.js';
 import { tenantIdFromAuth, userIdFromAuth } from '../middleware/buyerAuth.js';
 import type { SourcingLine } from '../../shared/types/domain.js';
@@ -14,6 +16,7 @@ export function createBuyerRouter(
   invitationService: InvitationService,
   quoteService: QuoteService,
   bidComparisonService?: BidComparisonService,
+  awardService?: AwardService,
 ): Router {
   const router = Router();
 
@@ -185,6 +188,118 @@ export function createBuyerRouter(
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
+  });
+
+  // ── Award Workspace (M7) ───────────────────────────────────────────────────
+
+  function awardErrorResponse(res: Response, err: unknown): void {
+    if (err instanceof AwardScenarioNotFoundError) { res.status(404).json({ error: err.message }); return; }
+    if (err instanceof AwardScenarioFinalizedError) { res.status(409).json({ error: err.message }); return; }
+    if (err instanceof AwardValidationError) { res.status(400).json({ error: err.message }); return; }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+
+  router.post('/events/:eventId/award-scenarios/recommended', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const { name, comparisonSnapshotId, notes, eventLines } = req.body as {
+        name: string; comparisonSnapshotId: string; notes?: string; eventLines: SourcingLine[];
+      };
+      if (!name || !comparisonSnapshotId || !Array.isArray(eventLines)) {
+        res.status(400).json({ error: 'name, comparisonSnapshotId, and eventLines are required' }); return;
+      }
+      const scenario = await awardService.createRecommendedScenario(
+        tenantId, param(req, 'eventId'), eventLines, { name, comparisonSnapshotId, notes },
+        userId, new Date().toISOString(),
+      );
+      res.status(201).json({ scenario });
+    } catch (err) { awardErrorResponse(res, err); }
+  });
+
+  router.post('/events/:eventId/award-scenarios', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const { name, comparisonSnapshotId, notes, eventLines } = req.body as {
+        name: string; comparisonSnapshotId: string; notes?: string; eventLines: SourcingLine[];
+      };
+      if (!name || !comparisonSnapshotId || !Array.isArray(eventLines)) {
+        res.status(400).json({ error: 'name, comparisonSnapshotId, and eventLines are required' }); return;
+      }
+      const scenario = await awardService.createEmptyScenario(
+        tenantId, param(req, 'eventId'), eventLines, { name, comparisonSnapshotId, notes },
+        userId, new Date().toISOString(),
+      );
+      res.status(201).json({ scenario });
+    } catch (err) { awardErrorResponse(res, err); }
+  });
+
+  router.get('/events/:eventId/award-scenarios', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const scenarios = await awardService.listScenarios(tenantId, param(req, 'eventId'));
+      res.json({ scenarios });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.get('/events/:eventId/award-scenarios/finalized', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const scenario = await awardService.getFinalizedScenario(tenantId, param(req, 'eventId'));
+      if (!scenario) { res.status(404).json({ error: 'No finalized award scenario for this event' }); return; }
+      res.json({ scenario });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.get('/award-scenarios/:id', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const scenario = await awardService.getScenario(tenantId, param(req, 'id'));
+      if (!scenario) { res.status(404).json({ error: 'Award scenario not found' }); return; }
+      res.json({ scenario });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.patch('/award-scenarios/:id/lines/:lineId', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const { supplierId, quantity, overrideReason } = req.body as { supplierId: string; quantity: number; overrideReason?: string };
+      if (!supplierId || typeof quantity !== 'number') {
+        res.status(400).json({ error: 'supplierId and quantity are required' }); return;
+      }
+      const scenario = await awardService.awardLine(
+        tenantId, param(req, 'id'), param(req, 'lineId'), supplierId, quantity, overrideReason, userId, new Date().toISOString(),
+      );
+      res.json({ scenario });
+    } catch (err) { awardErrorResponse(res, err); }
+  });
+
+  router.delete('/award-scenarios/:id/lines/:lineId', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const scenario = await awardService.clearLine(tenantId, param(req, 'id'), param(req, 'lineId'), userId, new Date().toISOString());
+      res.json({ scenario });
+    } catch (err) { awardErrorResponse(res, err); }
+  });
+
+  router.post('/award-scenarios/:id/finalize', async (req: Request, res: Response) => {
+    if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const userId = userIdFromAuth(req);
+      const scenario = await awardService.finalizeScenario(tenantId, param(req, 'id'), userId, new Date().toISOString());
+      res.json({ scenario });
+    } catch (err) { awardErrorResponse(res, err); }
   });
 
   return router;

@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import type { InvitationService } from './services/invitationService.js';
 import type { QuoteService } from './services/quoteService.js';
 import type { BidComparisonService } from './services/bidComparisonService.js';
+import type { AwardService } from './services/awardService.js';
 import { createBuyerAuthMiddleware } from './middleware/buyerAuth.js';
 import { createBuyerRouter } from './routes/buyerRoutes.js';
 import { createPortalRouter } from './routes/portalRoutes.js';
@@ -17,6 +18,7 @@ export function createApp(
   quoteService: QuoteService,
   clientSecret: string,
   bidComparisonService?: BidComparisonService,
+  awardService?: AwardService,
 ) {
   const app = express();
 
@@ -30,7 +32,7 @@ export function createApp(
 
   const buyerAuth = createBuyerAuthMiddleware(clientSecret);
 
-  app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerRouter(invitationService, quoteService, bidComparisonService));
+  app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerRouter(invitationService, quoteService, bidComparisonService, awardService));
   app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalRouter(invitationService, quoteService));
 
   return app;

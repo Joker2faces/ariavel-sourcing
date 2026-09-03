@@ -5,14 +5,18 @@ export type AuditAction =
   | 'INVITATION_REGENERATED'
   | 'INVITATION_EXPIRED'
   | 'QUOTE_DRAFT_SAVED'
-  | 'QUOTE_SUBMITTED';
+  | 'QUOTE_SUBMITTED'
+  | 'AWARD_SCENARIO_CREATED'
+  | 'AWARD_LINE_SET'
+  | 'AWARD_LINE_CLEARED'
+  | 'AWARD_SCENARIO_FINALIZED';
 
 export interface AuditEvent {
   id: string;
   tenantId: string;
   action: AuditAction;
   entityId: string;
-  entityType: 'invitation' | 'quote';
+  entityType: 'invitation' | 'quote' | 'award_scenario';
   actorType: 'buyer' | 'supplier';
   actorId: string;
   timestamp: string;
