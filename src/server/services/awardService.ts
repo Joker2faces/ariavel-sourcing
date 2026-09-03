@@ -54,6 +54,9 @@ export interface AwardService {
 
   clearLine(tenantId: string, scenarioId: string, lineId: string, userId: string, now: string): Promise<AwardScenario>;
 
+  /** Explicitly records that a line will not be awarded to anyone (e.g. no supplier bid on it). */
+  markNoAward(tenantId: string, scenarioId: string, lineId: string, userId: string, now: string): Promise<AwardScenario>;
+
   /** Removes just one supplier's allocation from a (possibly split) line. */
   removeLineAllocation(tenantId: string, scenarioId: string, lineId: string, supplierId: string, userId: string, now: string): Promise<AwardScenario>;
 
@@ -326,6 +329,25 @@ export function createAwardService(
       scenario.updatedAt = now;
       await awardRepo.save(scenario);
       await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId });
+      return scenario;
+    },
+
+    async markNoAward(tenantId, scenarioId, lineId, userId, now) {
+      const scenario = await getScenarioOrThrow(tenantId, scenarioId);
+      assertNotFinalized(scenario);
+
+      const awardLine = scenario.lines.find(l => l.lineId === lineId);
+      if (!awardLine) throw new AwardValidationError(`Line ${lineId} not found in scenario`);
+      if (awardLine.allocations.length > 0) {
+        throw new AwardValidationError('Remove existing allocations before marking a line as no-award');
+      }
+
+      awardLine.status = 'NO_AWARD';
+      scenario.summary = calcSummary(scenario.lines);
+      scenario.awardType = deriveAwardType(scenario.lines);
+      scenario.updatedAt = now;
+      await awardRepo.save(scenario);
+      await auditRepo.log(tenantId, 'AWARD_LINE_CLEARED', scenario.id, 'award_scenario', 'buyer', userId, now, { lineId, noAward: true });
       return scenario;
     },
 

@@ -23,6 +23,7 @@ import { OnboardingFlow } from './onboarding/OnboardingFlow';
 import { SuppliersPage } from './suppliers/SuppliersPage';
 import { SourcingEventsPage } from './sourcing/SourcingEventsPage';
 import { SettingsPage } from './settings/SettingsPage';
+import { AwardWorkspacePage } from './awards/AwardWorkspacePage';
 import './styles.css';
 
 const ONBOARDING_KEY = 'ariavel_onboarding_done';
@@ -196,6 +197,8 @@ export default function App({ supplierService: injSupplier, eventService: injEve
           ? <SuppliersPage service={services.supplierService} capabilities={services.capabilities} />
           : activeNav === 'Sourcing Events' && services
           ? <SourcingEventsPage service={services.eventService} capabilities={services.capabilities} apiClient={services.apiClient} serverAvailable={services.serverAvailable} />
+          : activeNav === 'Awards' && services
+          ? <AwardWorkspacePage eventService={services.eventService} apiClient={services.apiClient} serverAvailable={services.serverAvailable} />
           : activeNav === 'Settings' && services
           ? <SettingsPage capabilities={services.capabilities} serverBaseUrl="" serverAvailable={services.serverAvailable} apiClient={services.apiClient} />
           : <PlaceholderPage title={activeNav} />}

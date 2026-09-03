@@ -3,6 +3,7 @@ import type { SupplierQuote } from '../../server/types/quote';
 import type { ComparisonSnapshot, ComparisonInput } from '../../shared/types/bid';
 import type { SourcingLine } from '../../shared/types/domain';
 import type { TenantSettings, TenantSettingsInput } from '../../shared/types/tenantSettings';
+import type { AwardScenario, AwardScenarioInput } from '../../shared/types/award';
 
 export interface BuyerApiClient {
   listInvitations(eventId: string): Promise<SupplierInvitation[]>;
@@ -17,6 +18,15 @@ export interface BuyerApiClient {
   setManualTechnicalScore(snapshotId: string, supplierId: string, score: number, comment?: string): Promise<ComparisonSnapshot>;
   getSettings(): Promise<TenantSettings>;
   updateSettings(input: TenantSettingsInput, expectedVersion: number): Promise<TenantSettings>;
+  createRecommendedAwardScenario(eventId: string, eventLines: SourcingLine[], input: AwardScenarioInput): Promise<AwardScenario>;
+  createEmptyAwardScenario(eventId: string, eventLines: SourcingLine[], input: AwardScenarioInput): Promise<AwardScenario>;
+  listAwardScenarios(eventId: string): Promise<AwardScenario[]>;
+  getAwardScenario(id: string): Promise<AwardScenario>;
+  awardLine(scenarioId: string, lineId: string, supplierId: string, quantity: number, overrideReason?: string): Promise<AwardScenario>;
+  clearAwardLine(scenarioId: string, lineId: string): Promise<AwardScenario>;
+  markAwardLineNoAward(scenarioId: string, lineId: string): Promise<AwardScenario>;
+  removeAwardLineAllocation(scenarioId: string, lineId: string, supplierId: string): Promise<AwardScenario>;
+  finalizeAwardScenario(scenarioId: string): Promise<AwardScenario>;
 }
 
 export interface CreateInvitationBody {
@@ -55,6 +65,16 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
 
   async function put<T>(path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${baseUrl}${path}`, { method: 'PUT', headers: await headers(), body: body ? JSON.stringify(body) : undefined });
+    if (!res.ok) {
+      const err = new Error(`API error ${res.status}: ${path}`) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
+    return res.json() as Promise<T>;
+  }
+
+  async function del<T>(path: string): Promise<T> {
+    const res = await fetch(`${baseUrl}${path}`, { method: 'DELETE', headers: await headers() });
     if (!res.ok) {
       const err = new Error(`API error ${res.status}: ${path}`) as Error & { status?: number };
       err.status = res.status;
@@ -113,6 +133,42 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
     async updateSettings(input, expectedVersion) {
       const data = await put<{ settings: TenantSettings }>('/api/buyer/settings', { ...input, expectedVersion });
       return data.settings;
+    },
+    async createRecommendedAwardScenario(eventId, eventLines, input) {
+      const data = await post<{ scenario: AwardScenario }>(`/api/buyer/events/${eventId}/award-scenarios/recommended`, { ...input, eventLines });
+      return data.scenario;
+    },
+    async createEmptyAwardScenario(eventId, eventLines, input) {
+      const data = await post<{ scenario: AwardScenario }>(`/api/buyer/events/${eventId}/award-scenarios`, { ...input, eventLines });
+      return data.scenario;
+    },
+    async listAwardScenarios(eventId) {
+      const data = await get<{ scenarios: AwardScenario[] }>(`/api/buyer/events/${eventId}/award-scenarios`);
+      return data.scenarios;
+    },
+    async getAwardScenario(id) {
+      const data = await get<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${id}`);
+      return data.scenario;
+    },
+    async awardLine(scenarioId, lineId, supplierId, quantity, overrideReason) {
+      const data = await patch<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${scenarioId}/lines/${lineId}`, { supplierId, quantity, overrideReason });
+      return data.scenario;
+    },
+    async clearAwardLine(scenarioId, lineId) {
+      const data = await del<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${scenarioId}/lines/${lineId}`);
+      return data.scenario;
+    },
+    async markAwardLineNoAward(scenarioId, lineId) {
+      const data = await post<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${scenarioId}/lines/${lineId}/no-award`);
+      return data.scenario;
+    },
+    async removeAwardLineAllocation(scenarioId, lineId, supplierId) {
+      const data = await del<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${scenarioId}/lines/${lineId}/allocations/${supplierId}`);
+      return data.scenario;
+    },
+    async finalizeAwardScenario(scenarioId) {
+      const data = await post<{ scenario: AwardScenario }>(`/api/buyer/award-scenarios/${scenarioId}/finalize`);
+      return data.scenario;
     },
   };
 }

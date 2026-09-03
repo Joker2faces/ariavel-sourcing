@@ -326,6 +326,22 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* ── Bid Matrix (M6) ─────────────────────────────────────────────────────── */
 .comparison-panel { display: flex; flex-direction: column; gap: 16px; }
 .comparison-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.award-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.award-editor { display: flex; flex-direction: column; gap: 20px; }
+.award-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.award-summary-tile { background: #fff; border: 1px solid #e0e5eb; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.award-summary-tile span { font-size: 12px; color: #667286; text-transform: uppercase; letter-spacing: .04em; }
+.award-summary-tile strong { font-size: 20px; color: #162033; }
+.award-lines { display: flex; flex-direction: column; gap: 12px; }
+.award-line-row { background: #fff; border: 1px solid #e0e5eb; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.award-line-row.awarded { border-color: #bde4c8; }
+.award-line-row.no-award { border-color: #e6e9ee; opacity: .8; }
+.award-line-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.award-allocation-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.award-allocation-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; background: #f8fafc; border-radius: 6px; padding: 8px 10px; }
+.award-line-cost { font-weight: 700; font-variant-numeric: tabular-nums; }
+.award-allocate-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.award-no-bid { display: flex; align-items: center; gap: 10px; }
 .bid-matrix { display: flex; flex-direction: column; gap: 20px; }
 .bid-matrix-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .bid-matrix-view-tabs { display: flex; gap: 4px; background: #f0f3f7; padding: 4px; border-radius: 7px; }

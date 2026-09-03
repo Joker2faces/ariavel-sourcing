@@ -388,4 +388,48 @@ describe('AwardService', () => {
       expect(lineTotal).toBeCloseTo(5520 + 3920, 2);
     });
   });
+
+  describe('markNoAward', () => {
+    const LINES_WITH_UNBID: SourcingLine[] = [
+      ...EVENT_LINES,
+      { id: 'line-3', description: 'Unbid Widget', quantity: 10, unit: 'pcs' },
+    ];
+
+    it('lets a line with no bidders be explicitly marked no-award and then finalized', async () => {
+      const { awardService } = buildService();
+      const scenario = await awardService.createEmptyScenario(
+        TENANT, EVENT_ID, LINES_WITH_UNBID, { name: 'With unbid line', comparisonSnapshotId: SNAP_ID }, USER_ID, NOW,
+      );
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 1000, undefined, USER_ID, NOW);
+      await awardService.awardLine(TENANT, scenario.id, 'line-2', 'sup-A', 500, undefined, USER_ID, NOW);
+      const afterNoAward = await awardService.markNoAward(TENANT, scenario.id, 'line-3', USER_ID, NOW);
+
+      const line3 = afterNoAward.lines.find(l => l.lineId === 'line-3')!;
+      expect(line3.status).toBe('NO_AWARD');
+      expect(line3.allocations).toHaveLength(0);
+
+      const finalized = await awardService.finalizeScenario(TENANT, scenario.id, USER_ID, NOW);
+      expect(finalized.isFinalized).toBe(true);
+    });
+
+    it('refuses to mark a line no-award while it still has an allocation', async () => {
+      const { awardService } = buildService();
+      const scenario = await awardService.createEmptyScenario(
+        TENANT, EVENT_ID, EVENT_LINES, { name: 'Has allocation', comparisonSnapshotId: SNAP_ID }, USER_ID, NOW,
+      );
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 1000, undefined, USER_ID, NOW);
+      await expect(awardService.markNoAward(TENANT, scenario.id, 'line-1', USER_ID, NOW)).rejects.toThrow();
+    });
+
+    it('cannot finalize while a line is still PENDING (not awarded and not marked no-award)', async () => {
+      const { awardService } = buildService();
+      const scenario = await awardService.createEmptyScenario(
+        TENANT, EVENT_ID, LINES_WITH_UNBID, { name: 'Stuck pending', comparisonSnapshotId: SNAP_ID }, USER_ID, NOW,
+      );
+      await awardService.awardLine(TENANT, scenario.id, 'line-1', 'sup-B', 1000, undefined, USER_ID, NOW);
+      await awardService.awardLine(TENANT, scenario.id, 'line-2', 'sup-A', 500, undefined, USER_ID, NOW);
+      // line-3 left PENDING — never awarded or marked no-award.
+      await expect(awardService.finalizeScenario(TENANT, scenario.id, USER_ID, NOW)).rejects.toThrow(/pending/);
+    });
+  });
 });
