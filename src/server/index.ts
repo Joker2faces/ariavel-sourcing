@@ -16,6 +16,7 @@ import { createInMemoryAuditRepository } from './db/inMemoryAuditRepository.js';
 import { createInMemoryComparisonRepository } from './db/inMemoryComparisonRepository.js';
 import { createInMemoryAwardRepository } from './db/inMemoryAwardRepository.js';
 import { createInMemoryAttachmentRepository } from './db/inMemoryAttachmentRepository.js';
+import { createMondayObjectStorageProvider, createInMemoryObjectStorageProvider, type ObjectStorageProvider, type InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
 import { createApp, type HealthDependencies } from './app.js';
 
 const PORT = Number(process.env['PORT'] ?? 8080);
@@ -77,9 +78,26 @@ async function start() {
   const quoteService = createQuoteService(quoteRepo, auditRepo);
   const bidComparisonService = createBidComparisonService(invRepo, quoteService, compRepo);
   const awardService = createAwardService(awardRepo, compRepo, auditRepo);
-  const documentService = createDocumentService(attachmentRepo, invRepo);
 
-  const app = createApp(invService, quoteService, clientSecret, bidComparisonService, awardService, documentService, healthDeps);
+  // OBJECT_STORAGE_BUCKET is auto-injected by monday Code once the app is deployed there.
+  // Before that (local dev, tests, first-release bootstrap) fall back to an in-memory
+  // store served by devStorageRoutes.ts — same real/fallback split as Document DB above.
+  let objectStorage: ObjectStorageProvider;
+  let inMemoryStorage: InMemoryObjectStorageProvider | undefined;
+  if (process.env['OBJECT_STORAGE_BUCKET']) {
+    objectStorage = await createMondayObjectStorageProvider();
+    console.log(JSON.stringify({ level: 'info', msg: 'Object Storage connected' }));
+  } else {
+    console.warn(JSON.stringify({ level: 'warn', msg: 'OBJECT_STORAGE_BUCKET not set — using in-memory object storage (files reset on restart)' }));
+    inMemoryStorage = createInMemoryObjectStorageProvider();
+    objectStorage = inMemoryStorage;
+  }
+  const documentService = createDocumentService(attachmentRepo, invRepo, objectStorage);
+
+  const app = createApp(
+    invService, quoteService, clientSecret, bidComparisonService, awardService, documentService, healthDeps,
+    inMemoryStorage ? { provider: inMemoryStorage, attachmentRepo } : undefined,
+  );
 
   const server = app.listen(PORT, () => {
     console.log(JSON.stringify({ level: 'info', msg: 'Ariavel Sourcing server listening', port: PORT }));

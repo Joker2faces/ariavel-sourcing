@@ -12,7 +12,10 @@ import { requestIdMiddleware } from './middleware/requestId.js';
 import { noSqlInjectionMiddleware } from './middleware/noSqlInjection.js';
 import { createBuyerRouter } from './routes/buyerRoutes.js';
 import { createPortalRouter } from './routes/portalRoutes.js';
-import { createBuyerDocumentRouter } from './routes/documentRoutes.js';
+import { createBuyerDocumentRouter, createPortalDocumentRouter } from './routes/documentRoutes.js';
+import { createDevStorageRouter } from './routes/devStorageRoutes.js';
+import type { InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
+import type { AttachmentRepository } from './db/attachmentRepository.js';
 
 const PORTAL_RATE_LIMIT = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
 const BUYER_RATE_LIMIT = rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false });
@@ -30,6 +33,7 @@ export function createApp(
   awardService?: AwardService,
   documentService?: DocumentService,
   healthDeps?: HealthDependencies,
+  devStorage?: { provider: InMemoryObjectStorageProvider; attachmentRepo: AttachmentRepository },
 ) {
   const app = express();
 
@@ -79,8 +83,13 @@ export function createApp(
   app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerRouter(invitationService, quoteService, bidComparisonService, awardService));
   if (documentService) {
     app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerDocumentRouter(documentService));
+    app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalDocumentRouter(documentService, invitationService));
   }
   app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalRouter(invitationService, quoteService));
+
+  if (devStorage) {
+    app.use('/api/dev-storage', createDevStorageRouter(devStorage.provider, devStorage.attachmentRepo));
+  }
 
   return app;
 }

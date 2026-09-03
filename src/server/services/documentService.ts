@@ -2,9 +2,12 @@ import type { AttachmentRepository } from '../db/attachmentRepository.js';
 import type { InvitationRepository } from '../db/invitationRepository.js';
 import type { Attachment, AttachmentInput, PresignedUploadResponse, ExcelImportResult, DocumentExtractionProvider } from '../../shared/types/document.js';
 import type { SourcingLine } from '../../shared/types/domain.js';
+import type { ObjectStorageProvider } from '../storage/objectStorageProvider.js';
 import { generateQuoteTemplateCsv, parseQuoteImportCsv } from '../documents/excelUtils.js';
 import { randomBytes } from 'crypto';
 import { createHash } from 'crypto';
+
+const UPLOAD_URL_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 export class AttachmentNotFoundError extends Error { constructor() { super('Attachment not found'); } }
 export class AttachmentValidationError extends Error { constructor(message: string) { super(message); } }
@@ -74,6 +77,7 @@ export interface DocumentService {
   getAttachment(tenantId: string, attachmentId: string): Promise<Attachment | null>;
   listAttachments(tenantId: string, entityType: string, entityId: string): Promise<Attachment[]>;
   deleteAttachment(tenantId: string, attachmentId: string, userId: string, now: string): Promise<void>;
+  downloadAttachment(tenantId: string, attachmentId: string): Promise<{ attachment: Attachment; content: Buffer }>;
 
   generateQuoteTemplate(
     tenantId: string,
@@ -99,6 +103,7 @@ export interface DocumentService {
 export function createDocumentService(
   attachmentRepo: AttachmentRepository,
   _invitationRepo: InvitationRepository,
+  objectStorage: ObjectStorageProvider,
 ): DocumentService {
   function genId() { return randomBytes(12).toString('hex'); }
 
@@ -129,12 +134,11 @@ export function createDocumentService(
 
       await attachmentRepo.create(attachment);
 
-      // In real monday Code deployment, use monday Object Storage SDK for presigned URL.
-      // Here we return a placeholder URL indicating where the SDK call would go.
-      const expiresAt = new Date(Date.parse(now) + 15 * 60 * 1000).toISOString();
+      const uploadUrl = await objectStorage.getUploadUrl(objectKey, attachment.mimeType, UPLOAD_URL_TTL_MS);
+      const expiresAt = new Date(Date.parse(now) + UPLOAD_URL_TTL_MS).toISOString();
       return {
         attachmentId: attachment.id,
-        uploadUrl: `https://object-storage.monday.com/upload/${objectKey}`,
+        uploadUrl,
         objectKey,
         expiresAt,
       };
@@ -158,6 +162,15 @@ export function createDocumentService(
       const attachment = await attachmentRepo.getById(tenantId, attachmentId);
       if (!attachment) throw new AttachmentNotFoundError();
       await attachmentRepo.updateStatus(tenantId, attachmentId, 'DELETED');
+      await objectStorage.deleteFile(attachment.objectKey).catch(() => { /* best-effort; metadata is the source of truth */ });
+    },
+
+    async downloadAttachment(tenantId, attachmentId) {
+      const attachment = await attachmentRepo.getById(tenantId, attachmentId);
+      if (!attachment || attachment.status !== 'READY') throw new AttachmentNotFoundError();
+      const file = await objectStorage.downloadFile(attachment.objectKey);
+      if (!file) throw new AttachmentNotFoundError();
+      return { attachment, content: file.content };
     },
 
     generateQuoteTemplate(tenantId: string, invitationId, eventLines, rfqReference) {

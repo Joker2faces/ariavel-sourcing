@@ -9,3 +9,5 @@ dist.zip
 .mappsrc
 coverage/
 *.local
+code.tar.gz
+security-scan-*.json

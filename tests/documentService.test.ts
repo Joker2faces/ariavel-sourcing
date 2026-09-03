@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { createDocumentService, validateMimeType, sanitizeFilename, AttachmentValidationError } from '../src/server/services/documentService';
 import { createInMemoryAttachmentRepository } from '../src/server/db/inMemoryAttachmentRepository';
 import { createInMemoryInvitationRepository } from '../src/server/db/inMemoryInvitationRepository';
+import { createInMemoryObjectStorageProvider } from '../src/server/storage/objectStorageProvider';
 import { generateQuoteTemplateCsv, parseQuoteImportCsv } from '../src/server/documents/excelUtils';
 import type { SourcingLine } from '../src/shared/types/domain';
 
@@ -20,7 +21,8 @@ const EVENT_LINES: SourcingLine[] = [
 function buildService() {
   const attachmentRepo = createInMemoryAttachmentRepository();
   const invRepo = createInMemoryInvitationRepository([]);
-  return createDocumentService(attachmentRepo, invRepo);
+  const storage = createInMemoryObjectStorageProvider();
+  return createDocumentService(attachmentRepo, invRepo, storage);
 }
 
 describe('validateMimeType', () => {
@@ -68,7 +70,7 @@ describe('DocumentService — initiateUpload', () => {
     expect(result.attachmentId).toBeDefined();
     expect(result.objectKey).toContain(TENANT);
     expect(result.objectKey).toContain('event');
-    expect(result.uploadUrl).toContain('object-storage.monday.com');
+    expect(result.uploadUrl).toContain('/api/dev-storage/');
   });
 
   it('rejects files exceeding 25MB', async () => {
@@ -124,6 +126,61 @@ describe('DocumentService — listAttachments', () => {
     const list = await svc.listAttachments(TENANT, 'event', EVENT_ID);
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(id1);
+  });
+});
+
+describe('DocumentService — downloadAttachment', () => {
+  it('rejects downloading an attachment that has not been confirmed READY', async () => {
+    const svc = buildService();
+    const { attachmentId } = await svc.initiateUpload(TENANT, {
+      entityType: 'event', entityId: EVENT_ID, filename: 'doc.pdf', mimeType: 'application/pdf', sizeBytes: 1024,
+    }, USER_ID, NOW);
+    await expect(svc.downloadAttachment(TENANT, attachmentId)).rejects.toThrow('not found');
+  });
+
+  it('rejects downloading with the wrong tenant', async () => {
+    const svc = buildService();
+    const { attachmentId } = await svc.initiateUpload(TENANT, {
+      entityType: 'event', entityId: EVENT_ID, filename: 'doc.pdf', mimeType: 'application/pdf', sizeBytes: 1024,
+    }, USER_ID, NOW);
+    await svc.confirmUpload(TENANT, attachmentId);
+    await expect(svc.downloadAttachment('monday-account-other', attachmentId)).rejects.toThrow('not found');
+  });
+
+  it('returns the uploaded bytes after upload -> confirm -> download round trip via the in-memory storage provider', async () => {
+    const attachmentRepo = createInMemoryAttachmentRepository();
+    const invRepo = createInMemoryInvitationRepository([]);
+    const storage = createInMemoryObjectStorageProvider();
+    const svc = createDocumentService(attachmentRepo, invRepo, storage);
+
+    const { attachmentId, objectKey } = await svc.initiateUpload(TENANT, {
+      entityType: 'event', entityId: EVENT_ID, filename: 'doc.pdf', mimeType: 'application/pdf', sizeBytes: 4,
+    }, USER_ID, NOW);
+
+    // Simulate what devStorageRoutes.ts does when the client PUTs the file bytes.
+    storage.putFile(objectKey, Buffer.from('%PDF'), 'application/pdf');
+    await svc.confirmUpload(TENANT, attachmentId);
+
+    const { attachment, content } = await svc.downloadAttachment(TENANT, attachmentId);
+    expect(attachment.status).toBe('READY');
+    expect(content.toString()).toBe('%PDF');
+  });
+
+  it('deleteAttachment removes the underlying file from storage', async () => {
+    const attachmentRepo = createInMemoryAttachmentRepository();
+    const invRepo = createInMemoryInvitationRepository([]);
+    const storage = createInMemoryObjectStorageProvider();
+    const svc = createDocumentService(attachmentRepo, invRepo, storage);
+
+    const { attachmentId, objectKey } = await svc.initiateUpload(TENANT, {
+      entityType: 'event', entityId: EVENT_ID, filename: 'doc.pdf', mimeType: 'application/pdf', sizeBytes: 4,
+    }, USER_ID, NOW);
+    storage.putFile(objectKey, Buffer.from('%PDF'), 'application/pdf');
+    await svc.confirmUpload(TENANT, attachmentId);
+    await svc.deleteAttachment(TENANT, attachmentId, USER_ID, NOW);
+
+    await expect(svc.downloadAttachment(TENANT, attachmentId)).rejects.toThrow('not found');
+    expect(await storage.downloadFile(objectKey)).toBeNull();
   });
 });
 
