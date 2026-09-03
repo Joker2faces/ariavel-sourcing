@@ -2,6 +2,7 @@ import type { SupplierInvitation } from '../../server/types/invitation';
 import type { SupplierQuote } from '../../server/types/quote';
 import type { ComparisonSnapshot, ComparisonInput } from '../../shared/types/bid';
 import type { SourcingLine } from '../../shared/types/domain';
+import type { TenantSettings, TenantSettingsInput } from '../../shared/types/tenantSettings';
 
 export interface BuyerApiClient {
   listInvitations(eventId: string): Promise<SupplierInvitation[]>;
@@ -14,6 +15,8 @@ export interface BuyerApiClient {
   getLatestComparison(eventId: string): Promise<ComparisonSnapshot | null>;
   listComparisons(eventId: string): Promise<ComparisonSnapshot[]>;
   setManualTechnicalScore(snapshotId: string, supplierId: string, score: number, comment?: string): Promise<ComparisonSnapshot>;
+  getSettings(): Promise<TenantSettings>;
+  updateSettings(input: TenantSettingsInput, expectedVersion: number): Promise<TenantSettings>;
 }
 
 export interface CreateInvitationBody {
@@ -47,6 +50,16 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
   async function patch<T>(path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${baseUrl}${path}`, { method: 'PATCH', headers: await headers(), body: body ? JSON.stringify(body) : undefined });
     if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+    return res.json() as Promise<T>;
+  }
+
+  async function put<T>(path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${baseUrl}${path}`, { method: 'PUT', headers: await headers(), body: body ? JSON.stringify(body) : undefined });
+    if (!res.ok) {
+      const err = new Error(`API error ${res.status}: ${path}`) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
     return res.json() as Promise<T>;
   }
 
@@ -92,6 +105,14 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
     async setManualTechnicalScore(snapshotId, supplierId, score, comment) {
       const data = await patch<{ snapshot: ComparisonSnapshot }>(`/api/buyer/comparisons/${snapshotId}/scores/${supplierId}`, { score, comment });
       return data.snapshot;
+    },
+    async getSettings() {
+      const data = await get<{ settings: TenantSettings }>('/api/buyer/settings');
+      return data.settings;
+    },
+    async updateSettings(input, expectedVersion) {
+      const data = await put<{ settings: TenantSettings }>('/api/buyer/settings', { ...input, expectedVersion });
+      return data.settings;
     },
   };
 }

@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { RuntimeCapabilities } from '../../backend/runtime/runtimeCapabilities';
+import type { BuyerApiClient } from '../api/buyerApiClient';
+import type { TenantSettings, TenantSettingsInput, FreightAllocationMethod } from '../../shared/types/tenantSettings';
+import { defaultTenantSettings } from '../../shared/types/tenantSettings';
 
 interface Props {
   capabilities: RuntimeCapabilities;
   serverBaseUrl: string;
   serverAvailable: boolean;
+  apiClient?: BuyerApiClient | null;
 }
 
 type Section = 'organization' | 'sourcing' | 'comparison' | 'security' | 'data' | 'billing';
@@ -18,8 +22,43 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: 'billing', label: 'Billing' },
 ];
 
-export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable }: Props) {
+export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, apiClient = null }: Props) {
   const [active, setActive] = useState<Section>('organization');
+  const [settings, setSettings] = useState<TenantSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!apiClient) { setSettings(defaultTenantSettings('local', new Date().toISOString())); setLoading(false); return; }
+    let cancelled = false;
+    apiClient.getSettings()
+      .then(s => { if (!cancelled) setSettings(s); })
+      .catch(() => { if (!cancelled) setNotice({ tone: 'error', text: 'Could not load settings from the server.' }); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [apiClient]);
+
+  async function save(input: TenantSettingsInput) {
+    if (!apiClient || !settings) { setNotice({ tone: 'error', text: 'Not connected to the server.' }); return; }
+    try {
+      const updated = await apiClient.updateSettings(input, settings.version);
+      setSettings(updated);
+      setNotice({ tone: 'success', text: 'Settings saved.' });
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 409) {
+        const fresh = await apiClient.getSettings().catch(() => null);
+        if (fresh) setSettings(fresh);
+        setNotice({ tone: 'error', text: 'Someone else changed these settings — reloaded the latest version. Please re-apply your change.' });
+      } else {
+        setNotice({ tone: 'error', text: 'Could not save settings.' });
+      }
+    }
+  }
+
+  if (loading || !settings) {
+    return <div className="content-wrap"><div className="page-heading"><div><h1>Settings</h1></div></div><p>Loading settings…</p></div>;
+  }
 
   return (
     <div className="settings-page">
@@ -29,6 +68,12 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable }: P
           <p>Configure Ariavel Sourcing for your organization.</p>
         </div>
       </div>
+
+      {notice && (
+        <div className={`notice ${notice.tone === 'error' ? 'notice-error' : 'notice-success'}`} role="status">
+          {notice.text}
+        </div>
+      )}
 
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Settings sections">
@@ -45,10 +90,10 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable }: P
         </nav>
 
         <div className="settings-content">
-          {active === 'organization' && <OrganizationSection serverBaseUrl={serverBaseUrl} serverAvailable={serverAvailable} capabilities={capabilities} />}
-          {active === 'sourcing' && <SourcingSection />}
-          {active === 'comparison' && <ComparisonSection />}
-          {active === 'security' && <SecuritySection capabilities={capabilities} />}
+          {active === 'organization' && <OrganizationSection settings={settings} onSave={save} serverBaseUrl={serverBaseUrl} serverAvailable={serverAvailable} capabilities={capabilities} readOnly={!apiClient} />}
+          {active === 'sourcing' && <SourcingSection settings={settings} onSave={save} readOnly={!apiClient} />}
+          {active === 'comparison' && <ComparisonSection settings={settings} onSave={save} readOnly={!apiClient} />}
+          {active === 'security' && <SecuritySection settings={settings} onSave={save} capabilities={capabilities} readOnly={!apiClient} />}
           {active === 'data' && <DataPrivacySection />}
           {active === 'billing' && <BillingSection />}
         </div>
@@ -82,11 +127,43 @@ function StatusBadge({ ok, trueLabel = 'Yes', falseLabel = 'No' }: { ok: boolean
   return <span className={`settings-badge ${ok ? 'badge-success' : 'badge-neutral'}`}>{ok ? trueLabel : falseLabel}</span>;
 }
 
-function OrganizationSection({ serverBaseUrl, serverAvailable, capabilities }: { serverBaseUrl: string; serverAvailable: boolean; capabilities: RuntimeCapabilities }) {
+function SaveButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return <button className="primary-button settings-save-button" onClick={onClick} disabled={disabled}>Save changes</button>;
+}
+
+function OrganizationSection({
+  settings, onSave, serverBaseUrl, serverAvailable, capabilities, readOnly,
+}: {
+  settings: TenantSettings;
+  onSave: (input: TenantSettingsInput) => Promise<void>;
+  serverBaseUrl: string; serverAvailable: boolean; capabilities: RuntimeCapabilities; readOnly: boolean;
+}) {
+  const [companyDisplayName, setCompanyDisplayName] = useState(settings.organization.companyDisplayName);
+  const [supportEmail, setSupportEmail] = useState(settings.organization.supportEmail);
+  const [defaultCurrency, setDefaultCurrency] = useState(settings.organization.defaultCurrency);
+
   return (
     <div className="settings-section">
+      <SettingsCard title="Company">
+        <SettingsRow label="Company display name" note="Shown to suppliers on the invitation portal" value={
+          <input className="settings-input" value={companyDisplayName} disabled={readOnly}
+            onChange={e => setCompanyDisplayName(e.target.value)} aria-label="Company display name" />
+        } />
+        <SettingsRow label="Support email" note="Shown to suppliers who need help with the portal" value={
+          <input type="email" className="settings-input" value={supportEmail} disabled={readOnly}
+            onChange={e => setSupportEmail(e.target.value)} aria-label="Support email" />
+        } />
+        <SettingsRow label="Default currency" value={
+          <select className="settings-select" value={defaultCurrency} disabled={readOnly}
+            onChange={e => setDefaultCurrency(e.target.value)} aria-label="Default currency">
+            {['EUR', 'USD', 'GBP', 'JPY', 'CNY', 'CHF'].map(c => <option key={c}>{c}</option>)}
+          </select>
+        } />
+        {!readOnly && <SaveButton onClick={() => onSave({ organization: { companyDisplayName, supportEmail, defaultCurrency } })} />}
+      </SettingsCard>
+
       <SettingsCard title="Backend Connection">
-        <SettingsRow label="Server URL" value={<code className="settings-code">{serverBaseUrl || '(auto-provisioned by monday Code)'}</code>} />
+        <SettingsRow label="Server URL" value={<code className="settings-code">{serverBaseUrl || '(same origin as this app)'}</code>} />
         <SettingsRow label="Connection status" value={<StatusBadge ok={serverAvailable} trueLabel="Connected" falseLabel="Offline" />} />
       </SettingsCard>
 
@@ -106,54 +183,40 @@ function OrganizationSection({ serverBaseUrl, serverAvailable, capabilities }: {
   );
 }
 
-function SourcingSection() {
-  const [defaultCurrency, setDefaultCurrency] = useState('EUR');
-  const [defaultLeadTime, setDefaultLeadTime] = useState('30');
-  const [requireTargetPrice, setRequireTargetPrice] = useState(false);
-  const [autoCloseEnabled, setAutoCloseEnabled] = useState(false);
+function SourcingSection({ settings, onSave, readOnly }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; readOnly: boolean }) {
+  const [defaultRfqDeadlineDays, setDefaultRfqDeadlineDays] = useState(settings.sourcing.defaultRfqDeadlineDays);
+  const [invitationExpiryDays, setInvitationExpiryDays] = useState(settings.sourcing.invitationExpiryDays);
+  const [defaultIncoterm, setDefaultIncoterm] = useState(settings.sourcing.defaultIncoterm);
+  const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(settings.sourcing.defaultPaymentTerms);
+  const [requireTargetPrice, setRequireTargetPrice] = useState(settings.sourcing.requireTargetPrice);
+  const [autoCloseAtDeadline, setAutoCloseAtDeadline] = useState(settings.sourcing.autoCloseAtDeadline);
 
   return (
     <div className="settings-section">
       <SettingsCard title="RFQ Defaults">
-        <SettingsRow
-          label="Default base currency"
-          note="Used as the comparison currency for bid normalization"
-          value={
-            <select
-              className="settings-select"
-              value={defaultCurrency}
-              onChange={e => setDefaultCurrency(e.target.value)}
-              aria-label="Default base currency"
-            >
-              {['EUR', 'USD', 'GBP', 'JPY', 'CNY', 'CHF'].map(c => <option key={c}>{c}</option>)}
-            </select>
-          }
-        />
-        <SettingsRow
-          label="Default lead time (days)"
-          note="Pre-filled when creating new RFQ lines"
-          value={
-            <input
-              type="number"
-              className="settings-input"
-              value={defaultLeadTime}
-              min={1}
-              max={365}
-              onChange={e => setDefaultLeadTime(e.target.value)}
-              aria-label="Default lead time in days"
-            />
-          }
-        />
-        <SettingsRow
-          label="Require target price"
-          note="Block RFQ creation unless all lines have a target price"
-          value={
-            <label className="settings-toggle" aria-label="Require target price">
-              <input type="checkbox" checked={requireTargetPrice} onChange={e => setRequireTargetPrice(e.target.checked)} />
-              <span className="toggle-track"><span className="toggle-thumb" /></span>
-            </label>
-          }
-        />
+        <SettingsRow label="Default RFQ deadline (days)" note="Pre-filled when creating a new sourcing event" value={
+          <input type="number" className="settings-input" value={defaultRfqDeadlineDays} min={1} max={365} disabled={readOnly}
+            onChange={e => setDefaultRfqDeadlineDays(Number(e.target.value))} aria-label="Default RFQ deadline in days" />
+        } />
+        <SettingsRow label="Default invitation expiry (days)" note="How long a supplier invitation link stays valid" value={
+          <input type="number" className="settings-input" value={invitationExpiryDays} min={1} max={90} disabled={readOnly}
+            onChange={e => setInvitationExpiryDays(Number(e.target.value))} aria-label="Default invitation expiry in days" />
+        } />
+        <SettingsRow label="Default Incoterm" value={
+          <input className="settings-input" value={defaultIncoterm} disabled={readOnly}
+            onChange={e => setDefaultIncoterm(e.target.value)} aria-label="Default Incoterm" />
+        } />
+        <SettingsRow label="Default payment terms" value={
+          <input className="settings-input" value={defaultPaymentTerms} disabled={readOnly}
+            onChange={e => setDefaultPaymentTerms(e.target.value)} aria-label="Default payment terms" />
+        } />
+        <SettingsRow label="Require target price" note="Block RFQ creation unless all lines have a target price" value={
+          <label className="settings-toggle" aria-label="Require target price">
+            <input type="checkbox" checked={requireTargetPrice} disabled={readOnly} onChange={e => setRequireTargetPrice(e.target.checked)} />
+            <span className="toggle-track"><span className="toggle-thumb" /></span>
+          </label>
+        } />
+        {!readOnly && <SaveButton onClick={() => onSave({ sourcing: { defaultRfqDeadlineDays, invitationExpiryDays, defaultIncoterm, defaultPaymentTerms, requireTargetPrice, autoCloseAtDeadline } })} />}
       </SettingsCard>
 
       <SettingsCard title="Event Lifecycle">
@@ -162,7 +225,7 @@ function SourcingSection() {
           note="Automatically transition OPEN → EVALUATING when deadline passes"
           value={
             <label className="settings-toggle" aria-label="Auto-close events at deadline">
-              <input type="checkbox" checked={autoCloseEnabled} onChange={e => setAutoCloseEnabled(e.target.checked)} />
+              <input type="checkbox" checked={autoCloseAtDeadline} disabled={readOnly} onChange={e => setAutoCloseAtDeadline(e.target.checked)} />
               <span className="toggle-track"><span className="toggle-thumb" /></span>
             </label>
           }
@@ -182,58 +245,68 @@ function SourcingSection() {
   );
 }
 
-function ComparisonSection() {
-  const [freightPolicy, setFreightPolicy] = useState<string>('PROPORTIONAL_TO_LINE_VALUE');
-  const [landedCostWeight, setLandedCostWeight] = useState(60);
-  const [leadTimeWeight, setLeadTimeWeight] = useState(20);
-  const [completenessWeight, setCompletenessWeight] = useState(20);
+function ComparisonSection({ settings, onSave, readOnly }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; readOnly: boolean }) {
+  const [baseCurrency, setBaseCurrency] = useState(settings.comparison.baseCurrency);
+  const [freightAllocationMethod, setFreightAllocationMethod] = useState<FreightAllocationMethod>(settings.comparison.freightAllocationMethod);
+  const [closingSoonDays, setClosingSoonDays] = useState(settings.comparison.closingSoonDays);
+  const [landedCostWeight, setLandedCostWeight] = useState(settings.comparison.weights.landedCost);
+  const [leadTimeWeight, setLeadTimeWeight] = useState(settings.comparison.weights.leadTime);
+  const [completenessWeight, setCompletenessWeight] = useState(settings.comparison.weights.completeness);
 
   const totalWeight = landedCostWeight + leadTimeWeight + completenessWeight;
 
   return (
     <div className="settings-section">
-      <SettingsCard title="Freight Allocation">
-        <SettingsRow
-          label="Default freight policy"
-          note="How freight cost is distributed across RFQ lines"
-          value={
-            <select
-              className="settings-select"
-              value={freightPolicy}
-              onChange={e => setFreightPolicy(e.target.value)}
-              aria-label="Default freight policy"
-            >
-              <option value="PROPORTIONAL_TO_LINE_VALUE">Proportional to line value</option>
-              <option value="EQUAL_PER_LINE">Equal per line</option>
-              <option value="MANUAL">Manual (set per supplier)</option>
-            </select>
-          }
-        />
+      <SettingsCard title="Base Currency & Freight">
+        <SettingsRow label="Base currency" note="Used as the comparison currency for bid normalization" value={
+          <select className="settings-select" value={baseCurrency} disabled={readOnly}
+            onChange={e => setBaseCurrency(e.target.value)} aria-label="Base currency">
+            {['EUR', 'USD', 'GBP', 'JPY', 'CNY', 'CHF'].map(c => <option key={c}>{c}</option>)}
+          </select>
+        } />
+        <SettingsRow label="Default freight policy" note="How freight cost is distributed across RFQ lines" value={
+          <select className="settings-select" value={freightAllocationMethod} disabled={readOnly}
+            onChange={e => setFreightAllocationMethod(e.target.value as FreightAllocationMethod)} aria-label="Default freight policy">
+            <option value="PROPORTIONAL_TO_LINE_VALUE">Proportional to line value</option>
+            <option value="EQUAL_PER_LINE">Equal per line</option>
+            <option value="MANUAL">Manual (set per supplier)</option>
+          </select>
+        } />
+        <SettingsRow label={'"Closing soon" threshold (days)'} value={
+          <input type="number" className="settings-input" value={closingSoonDays} min={1} max={30} disabled={readOnly}
+            onChange={e => setClosingSoonDays(Number(e.target.value))} aria-label="Closing soon threshold in days" />
+        } />
       </SettingsCard>
 
       <SettingsCard title="Evaluation Weights">
         <p className="settings-helper">Weights must sum to 100. Total: <strong className={totalWeight !== 100 ? 'settings-error-text' : ''}>{totalWeight}</strong></p>
         <SettingsRow label="Landed cost" note="Primary cost metric after FX normalization" value={
           <div className="weight-input-group">
-            <input type="number" className="settings-input weight-input" value={landedCostWeight} min={0} max={100}
+            <input type="number" className="settings-input weight-input" value={landedCostWeight} min={0} max={100} disabled={readOnly}
               onChange={e => setLandedCostWeight(Number(e.target.value))} aria-label="Landed cost weight" />
             <span>%</span>
           </div>
         } />
         <SettingsRow label="Lead time" note="Days from PO to delivery" value={
           <div className="weight-input-group">
-            <input type="number" className="settings-input weight-input" value={leadTimeWeight} min={0} max={100}
+            <input type="number" className="settings-input weight-input" value={leadTimeWeight} min={0} max={100} disabled={readOnly}
               onChange={e => setLeadTimeWeight(Number(e.target.value))} aria-label="Lead time weight" />
             <span>%</span>
           </div>
         } />
         <SettingsRow label="Commercial completeness" note="Percentage of RFQ lines with full pricing" value={
           <div className="weight-input-group">
-            <input type="number" className="settings-input weight-input" value={completenessWeight} min={0} max={100}
+            <input type="number" className="settings-input weight-input" value={completenessWeight} min={0} max={100} disabled={readOnly}
               onChange={e => setCompletenessWeight(Number(e.target.value))} aria-label="Commercial completeness weight" />
             <span>%</span>
           </div>
         } />
+        {!readOnly && (
+          <SaveButton
+            disabled={totalWeight !== 100}
+            onClick={() => onSave({ comparison: { baseCurrency, freightAllocationMethod, closingSoonDays, weights: { landedCost: landedCostWeight, leadTime: leadTimeWeight, completeness: completenessWeight } } })}
+          />
+        )}
       </SettingsCard>
 
       <SettingsCard title="FX Rates">
@@ -244,13 +317,32 @@ function ComparisonSection() {
   );
 }
 
-function SecuritySection({ capabilities }: { capabilities: RuntimeCapabilities }) {
+function SecuritySection({ settings, onSave, capabilities, readOnly }: { settings: TenantSettings; onSave: (input: TenantSettingsInput) => Promise<void>; capabilities: RuntimeCapabilities; readOnly: boolean }) {
+  const [allowSupplierDrafts, setAllowSupplierDrafts] = useState(settings.security.allowSupplierDrafts);
+  const [submittedQuoteReopenPolicy, setSubmittedQuoteReopenPolicy] = useState(settings.security.submittedQuoteReopenPolicy);
+
   return (
     <div className="settings-section">
+      <SettingsCard title="Supplier Portal Policy">
+        <SettingsRow label="Allow suppliers to save drafts" note="If off, suppliers must submit their quote in one sitting" value={
+          <label className="settings-toggle" aria-label="Allow suppliers to save drafts">
+            <input type="checkbox" checked={allowSupplierDrafts} disabled={readOnly} onChange={e => setAllowSupplierDrafts(e.target.checked)} />
+            <span className="toggle-track"><span className="toggle-thumb" /></span>
+          </label>
+        } />
+        <SettingsRow label="Submitted quote reopen policy" value={
+          <select className="settings-select" value={submittedQuoteReopenPolicy} disabled={readOnly}
+            onChange={e => setSubmittedQuoteReopenPolicy(e.target.value as 'NEVER' | 'BUYER_APPROVAL_REQUIRED')} aria-label="Submitted quote reopen policy">
+            <option value="NEVER">Never — submitted quotes are permanently immutable</option>
+            <option value="BUYER_APPROVAL_REQUIRED">Allow with buyer approval (not yet enforced server-side)</option>
+          </select>
+        } />
+        {!readOnly && <SaveButton onClick={() => onSave({ security: { allowSupplierDrafts, submittedQuoteReopenPolicy } })} />}
+      </SettingsCard>
+
       <SettingsCard title="Authentication">
         <SettingsRow label="Buyer authentication" value="monday.com session token (JWT)" />
-        <SettingsRow label="Supplier portal" value="HMAC-signed invitation token" />
-        <SettingsRow label="Token expiry" value="48 hours (supplier portal links)" />
+        <SettingsRow label="Supplier portal" value="Random 256-bit token, hashed at rest" />
       </SettingsCard>
 
       <SettingsCard title="Tenant Isolation">
@@ -272,7 +364,7 @@ function SecuritySection({ capabilities }: { capabilities: RuntimeCapabilities }
         <SettingsRow label="Request body limit" value="256 KB" />
         <SettingsRow label="File upload limit" value="25 MB" />
         <SettingsRow label="Content Security Policy" value={<StatusBadge ok={true} trueLabel="Enabled" />} />
-        <SettingsRow label="CORS policy" value="Origin locked to monday.com" />
+        <SettingsRow label="CORS policy" value="Same-origin only (frontend and API share one origin)" />
       </SettingsCard>
     </div>
   );
@@ -307,7 +399,7 @@ function DataPrivacySection() {
       <SettingsCard title="GDPR / Compliance">
         <SettingsRow label="Personal data processed" value="monday.com user IDs, supplier contact names" />
         <SettingsRow label="Data processor" value="monday.com Ltd. (platform DPA applies)" />
-        <SettingsRow label="Data export" value="CSV export available on all entity lists" />
+        <SettingsRow label="Audit log export" value="CSV export available from the event Activity tab" />
       </SettingsCard>
     </div>
   );

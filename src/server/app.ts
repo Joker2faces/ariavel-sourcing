@@ -9,12 +9,14 @@ import type { QuoteService } from './services/quoteService.js';
 import type { BidComparisonService } from './services/bidComparisonService.js';
 import type { AwardService } from './services/awardService.js';
 import type { DocumentService } from './services/documentService.js';
+import type { TenantSettingsService } from './services/tenantSettingsService.js';
 import { createBuyerAuthMiddleware } from './middleware/buyerAuth.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { noSqlInjectionMiddleware } from './middleware/noSqlInjection.js';
 import { createBuyerRouter } from './routes/buyerRoutes.js';
 import { createPortalRouter } from './routes/portalRoutes.js';
 import { createBuyerDocumentRouter, createPortalDocumentRouter } from './routes/documentRoutes.js';
+import { createSettingsRouter } from './routes/settingsRoutes.js';
 import { createDevStorageRouter } from './routes/devStorageRoutes.js';
 import type { InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
 import type { AttachmentRepository } from './db/attachmentRepository.js';
@@ -36,6 +38,7 @@ export function createApp(
   documentService?: DocumentService,
   healthDeps?: HealthDependencies,
   devStorage?: { provider: InMemoryObjectStorageProvider; attachmentRepo: AttachmentRepository },
+  settingsService?: TenantSettingsService,
 ) {
   const app = express();
 
@@ -97,6 +100,9 @@ export function createApp(
     app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalDocumentRouter(documentService, invitationService));
   }
   app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalRouter(invitationService, quoteService));
+  if (settingsService) {
+    app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createSettingsRouter(settingsService));
+  }
 
   if (devStorage) {
     app.use('/api/dev-storage', createDevStorageRouter(devStorage.provider, devStorage.attachmentRepo));

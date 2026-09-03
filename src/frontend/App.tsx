@@ -14,6 +14,7 @@ import { createMondayApiBoardProvider } from '../backend/providers/mondayApiBoar
 import { createMondayRuntimeAdapter, detectRuntimeMode, RuntimeMode } from '../backend/runtime/mondayRuntime';
 import type { RuntimeCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { deriveCapabilities, fullCapabilities } from '../backend/runtime/runtimeCapabilities';
+import { createBuyerApiClient, type BuyerApiClient } from './api/buyerApiClient';
 import type { SourcingEvent, SourcingEventStatus } from '../shared/types/domain';
 import { isClosingSoon, formatDeadlineDisplay } from '../shared/utils/deadline';
 import { Icon } from './components/Icon';
@@ -41,6 +42,8 @@ interface RuntimeServices {
   supplierService: SupplierService;
   eventService: SourcingEventService;
   capabilities: RuntimeCapabilities;
+  apiClient: BuyerApiClient | null;
+  serverAvailable: boolean;
 }
 
 function useRuntimeServices(injected?: { supplierService?: SupplierService; eventService?: SourcingEventService }): {
@@ -56,14 +59,14 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
     if (injected?.supplierService) {
       const eventRepo = createInMemorySourcingEventRepository(mockSourcingEvents);
       const eventSvc = injected.eventService ?? createSourcingEventService(eventRepo, developmentTenantContextProvider, injected.supplierService);
-      setServices({ supplierService: injected.supplierService, eventService: eventSvc, capabilities: fullCapabilities });
+      setServices({ supplierService: injected.supplierService, eventService: eventSvc, capabilities: fullCapabilities, apiClient: null, serverAvailable: false });
       setLoading(false);
       return;
     }
     if (injected?.eventService) {
       const supplierRepo = createInMemorySupplierRepository(mockSuppliers);
       const supplierSvc = createSupplierService(supplierRepo, developmentTenantContextProvider, mockMondayBoardProvider);
-      setServices({ supplierService: supplierSvc, eventService: injected.eventService, capabilities: fullCapabilities });
+      setServices({ supplierService: supplierSvc, eventService: injected.eventService, capabilities: fullCapabilities, apiClient: null, serverAvailable: false });
       setLoading(false);
       return;
     }
@@ -71,11 +74,14 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
     const mode = detectRuntimeMode();
 
     if (mode !== RuntimeMode.MONDAY) {
+      // Local development / test mode has no monday session to mint a buyer JWT
+      // from, so the buyer API (invitations, quotes, comparisons, awards) is not
+      // reachable here — only supplier/event data (backed by in-memory mocks).
       const supplierRepo = createInMemorySupplierRepository(mockSuppliers);
       const eventRepo = createInMemorySourcingEventRepository(mockSourcingEvents);
       const supplierSvc = createSupplierService(supplierRepo, developmentTenantContextProvider, mockMondayBoardProvider);
       const eventSvc = createSourcingEventService(eventRepo, developmentTenantContextProvider, supplierSvc);
-      setServices({ supplierService: supplierSvc, eventService: eventSvc, capabilities: fullCapabilities });
+      setServices({ supplierService: supplierSvc, eventService: eventSvc, capabilities: fullCapabilities, apiClient: null, serverAvailable: false });
       setLoading(false);
       return;
     }
@@ -93,7 +99,15 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
         const boardProvider = createMondayApiBoardProvider(runtime);
         const supplierSvc = createSupplierService(supplierRepo, tenantProvider, boardProvider);
         const eventSvc = createSourcingEventService(eventRepo, tenantProvider, supplierSvc);
-        if (!cancelled) setServices({ supplierService: supplierSvc, eventService: eventSvc, capabilities: caps });
+        // The backend is served from this same origin (see app.ts static serving),
+        // so the API base URL is simply relative — no CDN/backend URL to resolve.
+        const apiClient = createBuyerApiClient('', () => runtime.getSessionToken());
+        let serverAvailable = true;
+        try {
+          const health = await fetch('/health');
+          serverAvailable = health.ok;
+        } catch { serverAvailable = false; }
+        if (!cancelled) setServices({ supplierService: supplierSvc, eventService: eventSvc, capabilities: caps, apiClient, serverAvailable });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to connect to monday. Reload the page.');
       } finally {
@@ -115,9 +129,27 @@ export default function App({ supplierService: injSupplier, eventService: injEve
   });
   const { services, loading, error } = useRuntimeServices({ supplierService: injSupplier, eventService: injEvent });
 
+  // localStorage decides instantly (avoids a flash of the wizard on every load), but
+  // once we can reach the backend the tenant-persisted flag is authoritative — it
+  // catches "completed onboarding on a different device/browser" and hides the
+  // wizard there too, per-tenant rather than per-browser.
+  useEffect(() => {
+    if (!services?.apiClient) return;
+    let cancelled = false;
+    services.apiClient.getSettings()
+      .then(settings => { if (!cancelled && settings.onboardingCompletedAt) setShowOnboarding(false); })
+      .catch(() => { /* offline — keep whatever localStorage already decided */ });
+    return () => { cancelled = true; };
+  }, [services?.apiClient]);
+
   const dismissOnboarding = () => {
     try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
     setShowOnboarding(false);
+    if (services?.apiClient) {
+      services.apiClient.getSettings()
+        .then(s => services.apiClient!.updateSettings({ onboardingCompletedAt: new Date().toISOString() }, s.version))
+        .catch(() => { /* best-effort — localStorage already recorded completion for this browser */ });
+    }
   };
 
   if (loading) {
@@ -163,9 +195,9 @@ export default function App({ supplierService: injSupplier, eventService: injEve
         {activeNav === 'Suppliers' && services
           ? <SuppliersPage service={services.supplierService} capabilities={services.capabilities} />
           : activeNav === 'Sourcing Events' && services
-          ? <SourcingEventsPage service={services.eventService} capabilities={services.capabilities} />
+          ? <SourcingEventsPage service={services.eventService} capabilities={services.capabilities} apiClient={services.apiClient} serverAvailable={services.serverAvailable} />
           : activeNav === 'Settings' && services
-          ? <SettingsPage capabilities={services.capabilities} serverBaseUrl="" serverAvailable={false} />
+          ? <SettingsPage capabilities={services.capabilities} serverBaseUrl="" serverAvailable={services.serverAvailable} apiClient={services.apiClient} />
           : <PlaceholderPage title={activeNav} />}
       </main>
     </div>

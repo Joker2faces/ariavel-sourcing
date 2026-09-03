@@ -4,6 +4,7 @@ import type { SourcingEventService, SourcingEventFilters } from '../../backend/s
 import type { RuntimeCapabilities } from '../../backend/runtime/runtimeCapabilities';
 import { fullCapabilities } from '../../backend/runtime/runtimeCapabilities';
 import { isClosingSoon, isOverdue, formatDeadlineDisplay } from '../../shared/utils/deadline';
+import type { BuyerApiClient } from '../api/buyerApiClient';
 import { CreateEventWizard } from './CreateEventWizard';
 import { EventDetailDrawer } from './EventDetailDrawer';
 
@@ -32,10 +33,14 @@ export function SourcingEventsPage({
   service,
   capabilities = fullCapabilities,
   onCreateEvent,
+  apiClient = null,
+  serverAvailable = false,
 }: {
   service: SourcingEventService;
   capabilities?: RuntimeCapabilities;
   onCreateEvent?: () => void;
+  apiClient?: BuyerApiClient | null;
+  serverAvailable?: boolean;
 }) {
   const [events, setEvents] = useState<SourcingEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -285,6 +290,8 @@ export function SourcingEventsPage({
           event={selected}
           service={service}
           capabilities={capabilities}
+          apiClient={apiClient}
+          serverAvailable={serverAvailable}
           onClose={() => setSelected(undefined)}
           onEdit={canEdit && selected.status !== 'CANCELLED' ? () => { setEditingEvent(selected); setSelected(undefined); } : undefined}
           onStatusChange={async (status) => {

@@ -10,6 +10,9 @@ import { createAwardRepository } from './db/awardRepository.js';
 import { createAwardService } from './services/awardService.js';
 import { createAttachmentRepository } from './db/attachmentRepository.js';
 import { createDocumentService } from './services/documentService.js';
+import { createTenantSettingsRepository } from './db/tenantSettingsRepository.js';
+import { createTenantSettingsService } from './services/tenantSettingsService.js';
+import { createInMemoryTenantSettingsRepository } from './db/inMemoryTenantSettingsRepository.js';
 import { createInMemoryInvitationRepository } from './db/inMemoryInvitationRepository.js';
 import { createInMemoryQuoteRepository } from './db/inMemoryQuoteRepository.js';
 import { createInMemoryAuditRepository } from './db/inMemoryAuditRepository.js';
@@ -35,7 +38,7 @@ async function start() {
   // MNDY_MONGODB_CONNECTION_STRING is auto-injected by monday Code after first deployment.
   // On first boot (before Document DB is provisioned), fall back to in-memory repositories.
   let dbConnected = false;
-  let invRepo, quoteRepo, auditRepo, compRepo, awardRepo, attachmentRepo;
+  let invRepo, quoteRepo, auditRepo, compRepo, awardRepo, attachmentRepo, settingsRepo;
   let healthDeps: HealthDependencies = {};
 
   const mongoUri = process.env['MNDY_MONGODB_CONNECTION_STRING'];
@@ -48,6 +51,7 @@ async function start() {
       compRepo = createComparisonRepository(db);
       awardRepo = createAwardRepository(db);
       attachmentRepo = createAttachmentRepository(db);
+      settingsRepo = createTenantSettingsRepository(db);
       healthDeps = {
         checkDb: async () => {
           try { await db.command({ ping: 1 }); return true; } catch { return false; }
@@ -63,6 +67,7 @@ async function start() {
       compRepo = createInMemoryComparisonRepository();
       awardRepo = createInMemoryAwardRepository();
       attachmentRepo = createInMemoryAttachmentRepository();
+      settingsRepo = createInMemoryTenantSettingsRepository();
     }
   } else {
     console.warn(JSON.stringify({ level: 'warn', msg: 'MNDY_MONGODB_CONNECTION_STRING not set — using in-memory repositories (data resets on restart)' }));
@@ -72,12 +77,14 @@ async function start() {
     compRepo = createInMemoryComparisonRepository();
     awardRepo = createInMemoryAwardRepository();
     attachmentRepo = createInMemoryAttachmentRepository();
+    settingsRepo = createInMemoryTenantSettingsRepository();
   }
 
   const invService = createInvitationService(invRepo, auditRepo);
   const quoteService = createQuoteService(quoteRepo, auditRepo);
   const bidComparisonService = createBidComparisonService(invRepo, quoteService, compRepo);
   const awardService = createAwardService(awardRepo, compRepo, auditRepo);
+  const settingsService = createTenantSettingsService(settingsRepo, auditRepo);
 
   // OBJECT_STORAGE_BUCKET is auto-injected by monday Code once the app is deployed there.
   // Before that (local dev, tests, first-release bootstrap) fall back to an in-memory
@@ -97,6 +104,7 @@ async function start() {
   const app = createApp(
     invService, quoteService, clientSecret, bidComparisonService, awardService, documentService, healthDeps,
     inMemoryStorage ? { provider: inMemoryStorage, attachmentRepo } : undefined,
+    settingsService,
   );
 
   const server = app.listen(PORT, () => {
