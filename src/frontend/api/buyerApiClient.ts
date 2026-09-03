@@ -1,4 +1,4 @@
-import type { SupplierInvitation } from '../../server/types/invitation';
+import type { SupplierInvitation, RfqLineSnapshot } from '../../server/types/invitation';
 import type { SupplierQuote } from '../../server/types/quote';
 import type { ComparisonSnapshot, ComparisonInput } from '../../shared/types/bid';
 import type { SourcingLine } from '../../shared/types/domain';
@@ -41,6 +41,7 @@ export interface CreateInvitationBody {
   supplierNameSnapshot: string;
   supplierEmailSnapshot: string;
   supplierCodeSnapshot?: string;
+  linesSnapshot?: RfqLineSnapshot[];
   expiresAt?: string;
 }
 

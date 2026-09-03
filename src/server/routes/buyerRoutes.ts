@@ -7,6 +7,7 @@ import { AwardScenarioNotFoundError, AwardScenarioFinalizedError, AwardValidatio
 import { InvitationNotFoundError, InvitationInvalidStatusError } from '../services/invitationService.js';
 import { tenantIdFromAuth, userIdFromAuth } from '../middleware/buyerAuth.js';
 import type { SourcingLine } from '../../shared/types/domain.js';
+import type { RfqLineSnapshot } from '../types/invitation.js';
 
 function param(req: Request, key: string): string {
   return req.params[key] as string;
@@ -38,15 +39,15 @@ export function createBuyerRouter(
       // Explicitly pick only known InvitationInput fields — never trust tenantId/userId from body
       const {
         eventReference, eventTitleSnapshot, supplierId, supplierNameSnapshot,
-        supplierEmailSnapshot, supplierCodeSnapshot, expiresAt,
+        supplierEmailSnapshot, supplierCodeSnapshot, linesSnapshot, expiresAt,
       } = req.body as {
         eventReference: string; eventTitleSnapshot: string; supplierId: string;
         supplierNameSnapshot: string; supplierEmailSnapshot: string;
-        supplierCodeSnapshot?: string; expiresAt?: string;
+        supplierCodeSnapshot?: string; linesSnapshot?: RfqLineSnapshot[]; expiresAt?: string;
       };
       const { invitation, rawToken } = await invitationService.create(
         tenantId,
-        { eventId, eventReference, eventTitleSnapshot, supplierId, supplierNameSnapshot, supplierEmailSnapshot, supplierCodeSnapshot, expiresAt },
+        { eventId, eventReference, eventTitleSnapshot, supplierId, supplierNameSnapshot, supplierEmailSnapshot, supplierCodeSnapshot, linesSnapshot, expiresAt },
         userId,
       );
       res.status(201).json({ invitation, portalToken: rawToken });

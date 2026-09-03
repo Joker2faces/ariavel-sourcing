@@ -16,6 +16,7 @@ function toPublicDTO(inv: Awaited<ReturnType<InvitationService['resolveByToken']
     eventReference: inv.eventReference,
     eventTitle: inv.eventTitleSnapshot,
     supplierName: inv.supplierNameSnapshot,
+    lines: inv.linesSnapshot ?? [],
     status: inv.status,
     expiresAt: inv.expiresAt,
     submittedAt: inv.submittedAt,

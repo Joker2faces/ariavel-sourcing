@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createInMemorySupplierRepository } from '../backend/repositories/inMemorySupplierRepository';
 import { createMondayStorageSupplierRepository } from '../backend/repositories/mondayStorageSupplierRepository';
 import { mockSourcingEvents } from '../backend/repositories/mockSourcingRepository';

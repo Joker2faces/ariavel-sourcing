@@ -90,6 +90,9 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
         supplierNameSnapshot: supplier.supplierNameSnapshot,
         supplierEmailSnapshot: supplier.emailSnapshot ?? '',
         supplierCodeSnapshot: supplier.supplierCodeSnapshot,
+        linesSnapshot: event.lines.map(l => ({
+          lineId: l.id, description: l.description, quantity: l.quantity, unit: l.unit, specification: l.specification,
+        })),
       });
       setInvitations(prev => [invitation, ...prev]);
       setPortalTokens(prev => ({ ...prev, [invitation.id]: portalToken }));
