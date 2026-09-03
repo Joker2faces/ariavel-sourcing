@@ -1,0 +1,14 @@
+build/
+dist.zip
+.env
+.env.*
+!.env.example
+.mappsrc
+coverage/
+*.local
+code.tar.gz
+security-scan-*.json
+tests/
+*.test.ts
+*.test.tsx
+.claude/

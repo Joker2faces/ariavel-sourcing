@@ -48,6 +48,14 @@ export function createApp(
 ) {
   const app = express();
 
+  // monday Code runs the app behind its own reverse proxy, which sets
+  // X-Forwarded-For. Without trust proxy, express-rate-limit logs a
+  // ValidationError on every single request (seen in production console
+  // logs) and — more importantly — can't correctly derive the real client
+  // IP for rate-limit bucketing. `1` trusts exactly one hop (the proxy),
+  // not an arbitrary client-supplied chain.
+  app.set('trust proxy', 1);
+
   app.use(requestIdMiddleware);
 
   app.use(helmet({

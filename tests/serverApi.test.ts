@@ -63,6 +63,15 @@ describe('Server API', () => {
     });
   });
 
+  describe('trust proxy (monday Code sits behind a reverse proxy)', () => {
+    it('trusts exactly one proxy hop, so express-rate-limit can read X-Forwarded-For without raising a ValidationError', async () => {
+      const { app } = makeApp();
+      expect(app.get('trust proxy')).toBe(1);
+      const res = await request(app).get('/health').set('X-Forwarded-For', '203.0.113.5');
+      expect(res.status).toBe(200);
+    });
+  });
+
   describe('static frontend serving (same-origin with the API)', () => {
     const distDir = path.resolve(process.cwd(), 'dist');
     const indexPath = path.join(distDir, 'index.html');
