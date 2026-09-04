@@ -34,6 +34,7 @@ export function AwardWorkspacePage({ eventService, apiClient, capabilities = ful
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [scenariosLoadAttempt, setScenariosLoadAttempt] = useState(0);
 
   useEffect(() => { void eventService.list().then(evts => setEvents(evts.filter(e => e.status !== 'DRAFT' && e.status !== 'CANCELLED'))); }, [eventService]);
 
@@ -41,8 +42,9 @@ export function AwardWorkspacePage({ eventService, apiClient, capabilities = ful
 
   useEffect(() => {
     if (!apiClient || !selectedEventId) { setScenarios([]); return; }
+    setError('');
     apiClient.listAwardScenarios(selectedEventId).then(setScenarios).catch(() => setError('Could not load award scenarios.'));
-  }, [apiClient, selectedEventId]);
+  }, [apiClient, selectedEventId, scenariosLoadAttempt]);
 
   useEffect(() => {
     if (!apiClient || !selectedScenarioId) { setScenario(null); setSnapshot(null); return; }
@@ -149,7 +151,14 @@ export function AwardWorkspacePage({ eventService, apiClient, capabilities = ful
         <div><h1>Awards</h1><p>Turn a bid comparison into a final supplier award.</p></div>
       </div>
 
-      {error && <div className="notice notice-error" role="alert">{error}</div>}
+      {error && (
+        <div className="notice notice-error" role="alert">
+          {error}
+          {error === 'Could not load award scenarios.' && (
+            <button className="secondary-button" onClick={() => setScenariosLoadAttempt(n => n + 1)}>Retry</button>
+          )}
+        </div>
+      )}
       {notice && <div className="notice" role="status">{notice}</div>}
 
       <div className="award-toolbar">

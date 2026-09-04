@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createApp } from '../src/server/app';
@@ -131,6 +131,60 @@ describe('Award API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.scenarios.length).toBeGreaterThan(0);
+  });
+
+  it('GET list — a valid event with zero scenarios returns 200 [] (empty state is not an error)', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .get(`/api/buyer/events/${EVENT_ID}/award-scenarios`)
+      .set('Authorization', `Bearer ${makeBuyerToken()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.scenarios).toEqual([]);
+  });
+
+  it('UAT regression: GET list — a repository failure returns a generic 500 and logs a sanitized stage diagnostic', async () => {
+    // Real UAT report: selecting a real sourcing event with award scenarios
+    // showed "Could not load award scenarios." — same defect class as the
+    // Settings 500. Proves the route stays generic to the client on a real
+    // backend failure while emitting a diagnostic an operator can act on.
+    const invRepo = createInMemoryInvitationRepository([]);
+    const quoteRepo = createInMemoryQuoteRepository([]);
+    const auditRepo = createInMemoryAuditRepository();
+    const brokenCompRepo = createInMemoryComparisonRepository();
+    const brokenAwardRepo = createInMemoryAwardRepository();
+    brokenAwardRepo.listForEvent = () => Promise.reject(new Error('Document DB connection lost mid-query'));
+    const invService = createInvitationService(invRepo, auditRepo);
+    const quoteService = createQuoteService(quoteRepo, auditRepo);
+    const bidSvc = createBidComparisonService(invRepo, quoteService, brokenCompRepo);
+    const awardSvc = createAwardService(brokenAwardRepo, brokenCompRepo, auditRepo);
+    const app = createApp(
+      invService, quoteService, CLIENT_SECRET, bidSvc, awardSvc,
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      ALLOW_EDIT_ROLE_PROVIDER,
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const token = makeBuyerToken();
+
+    const res = await request(app)
+      .get(`/api/buyer/events/${EVENT_ID}/award-scenarios`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Internal server error' });
+
+    const stageCall = errorSpy.mock.calls.find(call => call[0] === 'AWARD_LIST_ERROR');
+    expect(stageCall).toBeDefined();
+    const logged = JSON.parse(stageCall![1] as string);
+    expect(logged.errorName).toBe('Error');
+    expect(logged.error).toBe('Document DB connection lost mid-query');
+    expect(typeof logged.requestId).toBe('string');
+
+    const loggedText = errorSpy.mock.calls.map(call => call.join(' ')).join('\n');
+    expect(loggedText).not.toContain(token);
+    expect(loggedText.toLowerCase()).not.toContain('authorization');
+    expect(loggedText.toLowerCase()).not.toContain('bearer');
+    vi.restoreAllMocks();
   });
 
   it('PATCH line — awards a line to a supplier', async () => {

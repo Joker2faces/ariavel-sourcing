@@ -110,15 +110,28 @@ describe('Settings routes', () => {
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'Internal server error' });
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
-      const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
-      expect(logged.msg).toBe('Failed to load tenant settings');
+      // Two independent diagnostics fire on a real 500: the route-level
+      // stage log (fine-grained, this specific failure) and the generic
+      // request-completion logger (every /api/buyer|/api/portal request).
+      // Log lines are (tag, jsonPayload) — two console.error args, not one
+      // JSON string — because the monday console-log viewer was observed to
+      // render a pure single-argument JSON line as unreadable "[console]null"
+      // during real UAT log investigation.
+      const stageCall = errorSpy.mock.calls.find(call => call[0] === 'SETTINGS_ROUTE_ERROR');
+      expect(stageCall).toBeDefined();
+      const logged = JSON.parse(stageCall![1] as string);
       expect(logged.route).toBe('GET /api/buyer/settings');
       expect(logged.errorName).toBe('Error');
       expect(logged.error).toBe('Document DB connection lost mid-query');
       expect(typeof logged.requestId).toBe('string');
+      expect(typeof logged.durationMs).toBe('number');
 
-      const loggedText = JSON.stringify(logged);
+      const completionCall = errorSpy.mock.calls.find(call => call[0] === 'API_REQUEST_COMPLETE');
+      expect(completionCall).toBeDefined();
+      const completion = JSON.parse(completionCall![1] as string);
+      expect(completion.status).toBe(500);
+
+      const loggedText = errorSpy.mock.calls.map(call => call.join(' ')).join('\n');
       expect(loggedText).not.toContain(token);
       expect(loggedText.toLowerCase()).not.toContain('authorization');
       expect(loggedText.toLowerCase()).not.toContain('bearer');

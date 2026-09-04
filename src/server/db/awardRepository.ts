@@ -1,5 +1,6 @@
 import type { Db, ObjectId } from 'mongodb';
 import type { AwardScenario } from '../../shared/types/award.js';
+import { stageLog, safeError } from '../observability/stageLog.js';
 
 const COLLECTION = 'award_scenarios';
 
@@ -33,8 +34,16 @@ export function createAwardRepository(db: Db): AwardRepository {
     },
 
     async listForEvent(tenantId, eventId) {
-      const docs = await col.find({ tenantId, eventId }).sort({ createdAt: -1 }).toArray();
-      return docs.map(d => strip(d) as AwardScenario);
+      const startedAt = Date.now();
+      stageLog('log', 'AWARD_REPO_START', { tenantId, eventId });
+      try {
+        const docs = await col.find({ tenantId, eventId }).sort({ createdAt: -1 }).toArray();
+        stageLog('log', 'AWARD_REPO_SUCCESS', { tenantId, eventId, count: docs.length, durationMs: Date.now() - startedAt });
+        return docs.map(d => strip(d) as AwardScenario);
+      } catch (err) {
+        stageLog('error', 'AWARD_REPO_ERROR', { tenantId, eventId, durationMs: Date.now() - startedAt, ...safeError(err) });
+        throw err;
+      }
     },
 
     async getFinalized(tenantId, eventId) {

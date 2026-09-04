@@ -9,6 +9,7 @@ import { tenantIdFromAuth, userIdFromAuth, requireAwardEditCapability } from '..
 import type { MondayRoleProvider } from '../auth/mondayRoleProvider.js';
 import type { SourcingLine } from '../../shared/types/domain.js';
 import type { RfqLineSnapshot } from '../types/invitation.js';
+import { stageLog, safeError } from '../observability/stageLog.js';
 
 function param(req: Request, key: string): string {
   return req.params[key] as string;
@@ -249,11 +250,23 @@ export function createBuyerRouter(
 
   router.get('/events/:eventId/award-scenarios', async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
+    const requestId = req.requestId;
+    const startedAt = Date.now();
+    stageLog('log', 'AWARD_LIST_START', { requestId, route: 'GET /api/buyer/events/:eventId/award-scenarios' });
     try {
       const tenantId = tenantIdFromAuth(req);
       const scenarios = await awardService.listScenarios(tenantId, param(req, 'eventId'));
+      stageLog('log', 'AWARD_LIST_COMPLETE', { requestId, tenantId, status: 200, count: scenarios.length, durationMs: Date.now() - startedAt });
       res.json({ scenarios });
-    } catch { res.status(500).json({ error: 'Internal server error' }); }
+    } catch (err) {
+      stageLog('error', 'AWARD_LIST_ERROR', {
+        requestId,
+        tenantId: req.buyerAuth ? tenantIdFromAuth(req) : undefined,
+        durationMs: Date.now() - startedAt,
+        ...safeError(err),
+      });
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   router.get('/events/:eventId/award-scenarios/finalized', async (req: Request, res: Response) => {

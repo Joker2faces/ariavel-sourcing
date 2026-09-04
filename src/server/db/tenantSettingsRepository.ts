@@ -1,5 +1,6 @@
 import type { Db, ObjectId } from 'mongodb';
 import type { TenantSettings } from '../../shared/types/tenantSettings.js';
+import { stageLog, safeError } from '../observability/stageLog.js';
 
 const COLLECTION = 'tenantSettings';
 
@@ -27,8 +28,16 @@ export function createTenantSettingsRepository(db: Db): TenantSettingsRepository
 
   return {
     async get(tenantId) {
-      const doc = await col.findOne({ tenantId });
-      return doc ? (strip(doc) as TenantSettings) : null;
+      const startedAt = Date.now();
+      stageLog('log', 'SETTINGS_REPO_GET_START', { tenantId });
+      try {
+        const doc = await col.findOne({ tenantId });
+        stageLog('log', 'SETTINGS_REPO_GET_SUCCESS', { tenantId, found: Boolean(doc), durationMs: Date.now() - startedAt });
+        return doc ? (strip(doc) as TenantSettings) : null;
+      } catch (err) {
+        stageLog('error', 'SETTINGS_REPO_GET_ERROR', { tenantId, durationMs: Date.now() - startedAt, ...safeError(err) });
+        throw err;
+      }
     },
 
     async setWithVersion(settings, expectedVersion) {
