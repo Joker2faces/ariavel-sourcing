@@ -9,6 +9,7 @@ import { fullCapabilities } from '../../backend/runtime/runtimeCapabilities';
 import { KpiCard } from '../components/KpiCard';
 import { StatusChip, type ChipTone } from '../components/StatusChip';
 import { RowActions } from '../components/RowActions';
+import { Modal } from '../components/Modal';
 
 interface Props {
   eventService: SourcingEventService;
@@ -285,27 +286,25 @@ function AwardScenarioEditor({
       ) : null}
 
       {confirming && (
-        <div className="portal-modal-overlay" role="presentation">
-          <div className="portal-modal award-finalize-modal" role="dialog" aria-modal="true" aria-label="Confirm award finalization">
-            <h2>Finalize this award?</h2>
-            <p>Once finalized, allocations cannot be changed. This is a consequential, audited action.</p>
-            <dl className="award-finalize-summary">
-              <div><dt>Winning suppliers</dt><dd>{scenario.summary.supplierCount}</dd></div>
-              <div><dt>Total awarded cost</dt><dd>{fmt(scenario.summary.totalAllocatedCost, 0)}</dd></div>
-              <div><dt>Savings vs. target</dt><dd>{scenario.summary.totalSavings != null ? `${fmt(scenario.summary.totalSavings, 0)} (${fmt(scenario.summary.savingsPercent, 1)}%)` : '—'}</dd></div>
-              <div><dt>Manual overrides</dt><dd>{overriddenLines.length}</dd></div>
-            </dl>
-            {overriddenLines.length > 0 && (
-              <div className="award-override-banner" role="note">
-                {overriddenLines.length} line{overriddenLines.length === 1 ? '' : 's'} awarded to a supplier other than the lowest landed cost. Rationale is preserved in the audit trail.
-              </div>
-            )}
-            <div className="portal-modal-actions">
-              <button className="secondary-button" onClick={() => setConfirming(false)} disabled={busy}>Go back</button>
-              <button className="primary-button" onClick={() => { setConfirming(false); onFinalize(); }} disabled={busy}>{busy ? 'Finalizing…' : 'Finalize award'}</button>
+        <Modal onClose={() => setConfirming(false)} ariaLabel="Confirm award finalization" className="award-finalize-modal">
+          <h2>Finalize this award?</h2>
+          <p>Once finalized, allocations cannot be changed. This is a consequential, audited action.</p>
+          <dl className="award-finalize-summary">
+            <div><dt>Winning suppliers</dt><dd>{scenario.summary.supplierCount}</dd></div>
+            <div><dt>Total awarded cost</dt><dd>{fmt(scenario.summary.totalAllocatedCost, 0)}</dd></div>
+            <div><dt>Savings vs. target</dt><dd>{scenario.summary.totalSavings != null ? `${fmt(scenario.summary.totalSavings, 0)} (${fmt(scenario.summary.savingsPercent, 1)}%)` : '—'}</dd></div>
+            <div><dt>Manual overrides</dt><dd>{overriddenLines.length}</dd></div>
+          </dl>
+          {overriddenLines.length > 0 && (
+            <div className="award-override-banner" role="note">
+              {overriddenLines.length} line{overriddenLines.length === 1 ? '' : 's'} awarded to a supplier other than the lowest landed cost. Rationale is preserved in the audit trail.
             </div>
+          )}
+          <div className="portal-modal-actions">
+            <button className="secondary-button" onClick={() => setConfirming(false)} disabled={busy}>Go back</button>
+            <button className="primary-button" onClick={() => { setConfirming(false); onFinalize(); }} disabled={busy}>{busy ? 'Finalizing…' : 'Finalize award'}</button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

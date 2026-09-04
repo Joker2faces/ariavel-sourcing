@@ -87,6 +87,20 @@ describe('PortalApp — public supplier portal, no monday context', () => {
     expect(screen.queryByText('Save draft')).not.toBeInTheDocument();
   });
 
+  it('closes the submit confirmation on Escape without submitting', async () => {
+    const user = userEvent.setup();
+    const client = mockClient();
+    render(<PortalApp token="tok" client={client} />);
+    await screen.findByText('Corrugated boxes');
+
+    await user.click(screen.getByText('Review & submit'));
+    expect(screen.getByText('Submit this quote?')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText('Submit this quote?')).not.toBeInTheDocument();
+    expect(client.submit).not.toHaveBeenCalled();
+  });
+
   it('shows the already-submitted state directly for a SUBMITTED invitation, without loading a quote form', async () => {
     const client = mockClient({
       getInvitation: vi.fn().mockResolvedValue(makeInvitation({ status: 'SUBMITTED', submittedAt: '2026-02-01T10:00:00Z' })),

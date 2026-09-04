@@ -3,6 +3,7 @@ import { createPortalApiClient, PortalApiError, type PortalApiClient } from './p
 import type { InvitationPublicDTO } from '../../server/types/invitation';
 import type { QuoteInput, QuoteLine, QuotePublicDTO } from '../../server/types/quote';
 import { Icon } from '../components/Icon';
+import { Modal } from '../components/Modal';
 
 type Phase = 'LOADING' | 'NOT_FOUND' | 'CLOSED' | 'READY' | 'SUBMITTED' | 'ERROR';
 
@@ -263,16 +264,14 @@ export function PortalApp({ token, client }: Props) {
       </div>
 
       {confirmingSubmit && (
-        <div className="portal-modal-overlay" role="presentation">
-          <div className="portal-modal" role="dialog" aria-modal="true" aria-label="Confirm quote submission">
-            <h2>Submit this quote?</h2>
-            <p>Once submitted, this quote is final and cannot be edited. Make sure every line and term is correct.</p>
-            <div className="portal-modal-actions">
-              <button className="secondary-button" onClick={() => setConfirmingSubmit(false)} disabled={saving}>Go back</button>
-              <button className="primary-button" onClick={confirmSubmit} disabled={saving}>{saving ? 'Submitting…' : 'Submit quote'}</button>
-            </div>
+        <Modal onClose={() => setConfirmingSubmit(false)} ariaLabel="Confirm quote submission">
+          <h2>Submit this quote?</h2>
+          <p>Once submitted, this quote is final and cannot be edited. Make sure every line and term is correct.</p>
+          <div className="portal-modal-actions">
+            <button className="secondary-button" onClick={() => setConfirmingSubmit(false)} disabled={saving}>Go back</button>
+            <button className="primary-button" onClick={confirmSubmit} disabled={saving}>{saving ? 'Submitting…' : 'Submit quote'}</button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
