@@ -36,6 +36,7 @@ function makeMockRuntime(contextOverrides: Partial<AppFeatureObjectContext> = {}
     mode: RuntimeMode.MONDAY,
     getContext: vi.fn().mockResolvedValue(ctx),
     getSessionToken: vi.fn(),
+    listenContext: vi.fn(() => () => {}),
     api: vi.fn().mockResolvedValue({ data: {} }),
     storage: {
       getItem: vi.fn().mockResolvedValue({ success: true, value: null }),

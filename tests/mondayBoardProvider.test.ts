@@ -8,6 +8,7 @@ function makeRuntime(apiResponses: Record<string, unknown> = {}): MondayRuntimeA
     mode: RuntimeMode.MONDAY,
     getContext: vi.fn(),
     getSessionToken: vi.fn(),
+    listenContext: vi.fn(() => () => {}),
     api: vi.fn().mockImplementation((query: string) => {
       if (query.includes('ListBoards')) return Promise.resolve(apiResponses['listBoards'] ?? { data: { boards: [] } });
       if (query.includes('BoardColumns')) return Promise.resolve(apiResponses['boardColumns'] ?? { data: { boards: [] } });

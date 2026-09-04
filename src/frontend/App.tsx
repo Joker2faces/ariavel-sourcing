@@ -26,6 +26,14 @@ import './styles.css';
 
 const ONBOARDING_KEY = 'ariavel_onboarding_done';
 
+// monday's context.theme is "light" | "dark" | "black" — Ariavel's design
+// tokens only distinguish light/dark, so "black" (monday's highest-contrast
+// dark variant) maps onto the same dark token set rather than inventing a
+// third, untested visual identity.
+export function applyMondayTheme(theme: string): void {
+  document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+}
+
 const nav = [{ label: 'Sourcing Events', icon: 'clipboard' }, { label: 'Suppliers', icon: 'users' }, { label: 'Awards', icon: 'trophy' }, { label: 'Settings', icon: 'settings' }] as const;
 
 interface RuntimeServices {
@@ -90,6 +98,7 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
     }
 
     let cancelled = false;
+    let unlistenTheme: (() => void) | undefined;
     (async () => {
       try {
         const runtime = createMondayRuntimeAdapter();
@@ -97,6 +106,11 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
         await tenantProvider.initialize();
         const context = await runtime.getContext();
         const caps = deriveCapabilities(context);
+        applyMondayTheme(context.theme);
+        // Live theme updates — monday.listen("context", ...) fires whenever
+        // context changes, theme included, so Ariavel follows the user's
+        // in-app monday theme choice without needing a page reload.
+        unlistenTheme = runtime.listenContext(next => applyMondayTheme(next.theme));
         const supplierRepo = createMondayStorageSupplierRepository(runtime);
         const eventRepo = createMondayStorageSourcingEventRepository(runtime);
         const boardProvider = createMondayApiBoardProvider(runtime);
@@ -117,7 +131,7 @@ function useRuntimeServices(injected?: { supplierService?: SupplierService; even
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; unlistenTheme?.(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { services, loading, error };

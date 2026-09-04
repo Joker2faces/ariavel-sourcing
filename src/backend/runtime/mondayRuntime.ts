@@ -53,6 +53,13 @@ export interface MondayRuntimeAdapter {
   /** monday.get("sessionToken") — a short-lived JWT verified server-side against MONDAY_CLIENT_SECRET. */
   getSessionToken(): Promise<string>;
   api(query: string, variables?: Record<string, unknown>): Promise<unknown>;
+  /**
+   * monday.listen("context", cb) — fires whenever any context field
+   * changes, theme included (context.theme: "light" | "dark" | "black").
+   * Used so Ariavel follows a live in-app monday theme change instead of
+   * only the OS's prefers-color-scheme. Returns an unsubscribe function.
+   */
+  listenContext(callback: (context: AppFeatureObjectContext) => void): () => void;
   storage: {
     getItem(key: string): Promise<StorageGetResult>;
     setItem(key: string, value: string, options?: { previous_version?: string }): Promise<StorageSetResult>;
@@ -66,6 +73,7 @@ interface MondaySdkInstance {
   setApiVersion(v: string): void;
   get(type: string, params?: Record<string, unknown>): Promise<{ data: unknown }>;
   api(query: string, options?: Record<string, unknown>): Promise<unknown>;
+  listen(type: string, callback: (res: { data: unknown }) => void): () => void;
   storage: {
     getItem(key: string): Promise<{ data: { success: boolean; value: unknown; version?: string } }>;
     setItem(key: string, value: unknown, options?: { previous_version?: string }): Promise<{ data: { success: boolean; version: string } }>;
@@ -103,6 +111,10 @@ export function createMondayRuntimeAdapter(): MondayRuntimeAdapter {
       const opts: Record<string, unknown> = { apiVersion: MONDAY_API_VERSION };
       if (variables) opts.variables = variables;
       return sdk.api(query, opts);
+    },
+
+    listenContext(callback: (context: AppFeatureObjectContext) => void): () => void {
+      return sdk.listen('context', res => callback(res.data as AppFeatureObjectContext));
     },
 
     storage: {
