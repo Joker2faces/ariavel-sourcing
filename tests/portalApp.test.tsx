@@ -89,6 +89,31 @@ describe('PortalApp — public supplier portal, no monday context', () => {
     expect(screen.queryByText('Save draft')).not.toBeInTheDocument();
   });
 
+  it('marking a line No Bid clears and disables its priced fields', async () => {
+    const user = userEvent.setup();
+    const client = mockClient();
+    render(<PortalApp token="tok" client={client} />);
+    await screen.findByText('Corrugated boxes');
+
+    const priceInput = screen.getByLabelText('Unit price for Corrugated boxes');
+    await user.type(priceInput, '4.50');
+    expect(priceInput).toHaveValue(4.5);
+
+    const noBidCheckbox = screen.getByLabelText('No bid for Corrugated boxes');
+    await user.click(noBidCheckbox);
+
+    expect(priceInput).toBeDisabled();
+    expect(priceInput).toHaveValue(null);
+    expect(screen.getByLabelText('Currency for Corrugated boxes')).toBeDisabled();
+    expect(screen.getByLabelText('Lead time in days for Corrugated boxes')).toBeDisabled();
+    expect(screen.getByLabelText('Minimum order quantity for Corrugated boxes')).toBeDisabled();
+
+    await user.click(screen.getByText('Save draft'));
+    await waitFor(() => expect(client.saveDraft).toHaveBeenCalledWith('tok', expect.objectContaining({
+      lines: [expect.objectContaining({ lineId: 'l1', unitPrice: undefined, currency: undefined })],
+    })));
+  });
+
   it('closes the submit confirmation on Escape without submitting', async () => {
     const user = userEvent.setup();
     const client = mockClient();

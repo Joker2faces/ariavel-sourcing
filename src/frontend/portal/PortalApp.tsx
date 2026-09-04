@@ -31,6 +31,7 @@ export function PortalApp({ token, client }: Props) {
   const [errorMessage, setErrorMessage] = useState('');
   const [invitation, setInvitation] = useState<InvitationPublicDTO | null>(null);
   const [lines, setLines] = useState<QuoteLine[]>([]);
+  const [noBidLines, setNoBidLines] = useState<Set<string>>(new Set());
   const [commercialTerms, setCommercialTerms] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [validityDays, setValidityDays] = useState<number | ''>('');
@@ -267,6 +268,7 @@ export function PortalApp({ token, client }: Props) {
               <tr>
                 <th>Description</th>
                 <th>Quantity</th>
+                <th>No bid</th>
                 <th>Unit price</th>
                 <th>Currency</th>
                 <th>Lead time (days)</th>
@@ -277,6 +279,13 @@ export function PortalApp({ token, client }: Props) {
             <tbody>
               {invitation.lines.map(rfqLine => {
                 const line = lines.find(l => l.lineId === rfqLine.lineId) ?? { lineId: rfqLine.lineId, lineDescription: rfqLine.description };
+                // A blank unit price is what the backend already treats as
+                // "no bid" (bidComparisonService.ts) — this checkbox makes
+                // that an explicit supplier choice instead of an inference
+                // from an empty field indistinguishable from "forgot to
+                // fill this in". Checking it clears the priced fields so the
+                // existing blank-price-means-no-bid rule applies cleanly.
+                const isNoBid = noBidLines.has(rfqLine.lineId);
                 return (
                   <tr key={rfqLine.lineId}>
                     <td>
@@ -285,28 +294,46 @@ export function PortalApp({ token, client }: Props) {
                     </td>
                     <td>{rfqLine.quantity} {rfqLine.unit}</td>
                     <td>
+                      <label className="portal-nobid-check">
+                        <input
+                          type="checkbox"
+                          checked={isNoBid}
+                          onChange={e => {
+                            const checked = e.target.checked;
+                            setNoBidLines(prev => {
+                              const next = new Set(prev);
+                              if (checked) next.add(rfqLine.lineId); else next.delete(rfqLine.lineId);
+                              return next;
+                            });
+                            if (checked) updateLine(rfqLine.lineId, { unitPrice: undefined, currency: undefined, leadTimeDays: undefined, moq: undefined });
+                          }}
+                        />
+                        <span className="visually-hidden">No bid for {rfqLine.description}</span>
+                      </label>
+                    </td>
+                    <td>
                       <label className="visually-hidden" htmlFor={`price-${rfqLine.lineId}`}>Unit price for {rfqLine.description}</label>
-                      <input id={`price-${rfqLine.lineId}`} type="number" min={0} step="0.01" value={line.unitPrice ?? ''}
+                      <input id={`price-${rfqLine.lineId}`} type="number" min={0} step="0.01" value={line.unitPrice ?? ''} disabled={isNoBid}
                         onChange={e => updateLine(rfqLine.lineId, { unitPrice: e.target.value === '' ? undefined : Number(e.target.value) })} />
                     </td>
                     <td>
                       <label className="visually-hidden" htmlFor={`currency-${rfqLine.lineId}`}>Currency for {rfqLine.description}</label>
-                      <input id={`currency-${rfqLine.lineId}`} type="text" maxLength={3} placeholder="USD" value={line.currency ?? ''}
+                      <input id={`currency-${rfqLine.lineId}`} type="text" maxLength={3} placeholder="USD" value={line.currency ?? ''} disabled={isNoBid}
                         onChange={e => updateLine(rfqLine.lineId, { currency: e.target.value.toUpperCase() || undefined })} />
                     </td>
                     <td>
                       <label className="visually-hidden" htmlFor={`lead-${rfqLine.lineId}`}>Lead time in days for {rfqLine.description}</label>
-                      <input id={`lead-${rfqLine.lineId}`} type="number" min={0} value={line.leadTimeDays ?? ''}
+                      <input id={`lead-${rfqLine.lineId}`} type="number" min={0} value={line.leadTimeDays ?? ''} disabled={isNoBid}
                         onChange={e => updateLine(rfqLine.lineId, { leadTimeDays: e.target.value === '' ? undefined : Number(e.target.value) })} />
                     </td>
                     <td>
                       <label className="visually-hidden" htmlFor={`moq-${rfqLine.lineId}`}>Minimum order quantity for {rfqLine.description}</label>
-                      <input id={`moq-${rfqLine.lineId}`} type="number" min={0} value={line.moq ?? ''}
+                      <input id={`moq-${rfqLine.lineId}`} type="number" min={0} value={line.moq ?? ''} disabled={isNoBid}
                         onChange={e => updateLine(rfqLine.lineId, { moq: e.target.value === '' ? undefined : Number(e.target.value) })} />
                     </td>
                     <td>
                       <label className="visually-hidden" htmlFor={`notes-${rfqLine.lineId}`}>Notes for {rfqLine.description}</label>
-                      <input id={`notes-${rfqLine.lineId}`} type="text" value={line.notes ?? ''}
+                      <input id={`notes-${rfqLine.lineId}`} type="text" value={line.notes ?? ''} placeholder={isNoBid ? 'Reason (optional)' : undefined}
                         onChange={e => updateLine(rfqLine.lineId, { notes: e.target.value || undefined })} />
                     </td>
                   </tr>
