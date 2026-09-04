@@ -1,11 +1,12 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createApp } from '../src/server/app';
 import { createInvitationService } from '../src/server/services/invitationService';
 import { createQuoteService } from '../src/server/services/quoteService';
 import { createTenantSettingsService } from '../src/server/services/tenantSettingsService';
+import type { TenantSettingsService } from '../src/server/services/tenantSettingsService';
 import { createInMemoryInvitationRepository } from '../src/server/db/inMemoryInvitationRepository';
 import { createInMemoryQuoteRepository } from '../src/server/db/inMemoryQuoteRepository';
 import { createInMemoryAuditRepository } from '../src/server/db/inMemoryAuditRepository';
@@ -15,14 +16,14 @@ const CLIENT_SECRET = 'test-client-secret-minimum-32-chars-long!!';
 const TENANT_ACCOUNT_ID = 9999;
 const OTHER_TENANT_ACCOUNT_ID = 8888;
 
-function makeApp() {
+function makeApp(settingsServiceOverride?: TenantSettingsService) {
   const invRepo = createInMemoryInvitationRepository();
   const quoteRepo = createInMemoryQuoteRepository();
   const auditRepo = createInMemoryAuditRepository();
   const settingsRepo = createInMemoryTenantSettingsRepository();
   const invService = createInvitationService(invRepo, auditRepo);
   const quoteService = createQuoteService(quoteRepo, auditRepo);
-  const settingsService = createTenantSettingsService(settingsRepo, auditRepo);
+  const settingsService = settingsServiceOverride ?? createTenantSettingsService(settingsRepo, auditRepo);
   const app = createApp(invService, quoteService, CLIENT_SECRET, undefined, undefined, undefined, undefined, undefined, settingsService);
   return { app };
 }
@@ -85,5 +86,43 @@ describe('Settings routes', () => {
       .set('Authorization', `Bearer ${buyerToken()}`)
       .send({ organization: { companyDisplayName: 'No version' } });
     expect(res.status).toBe(400);
+  });
+
+  describe('UAT regression: Document DB failure on GET /settings', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('returns a generic 500 to the browser and logs a sanitized diagnostic — never the raw error, and never a secret', async () => {
+      // Real UAT report: GET /api/buyer/settings returned 500 in the live
+      // installed app. The route already intends to fall through to 500 on
+      // any repository failure (e.g. a Document DB defect) — this proves
+      // that path stays generic to the client while still giving operators
+      // a real diagnostic to act on, instead of a silent, unexplained 500.
+      const brokenService: TenantSettingsService = {
+        getSettings: vi.fn().mockRejectedValue(new Error('Document DB connection lost mid-query')),
+        updateSettings: vi.fn(),
+      };
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { app } = makeApp(brokenService);
+      const token = buyerToken();
+
+      const res = await request(app).get('/api/buyer/settings').set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'Internal server error' });
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
+      expect(logged.msg).toBe('Failed to load tenant settings');
+      expect(logged.route).toBe('GET /api/buyer/settings');
+      expect(logged.errorName).toBe('Error');
+      expect(logged.error).toBe('Document DB connection lost mid-query');
+      expect(typeof logged.requestId).toBe('string');
+
+      const loggedText = JSON.stringify(logged);
+      expect(loggedText).not.toContain(token);
+      expect(loggedText.toLowerCase()).not.toContain('authorization');
+      expect(loggedText.toLowerCase()).not.toContain('bearer');
+      expect(loggedText.toLowerCase()).not.toContain('mongodb');
+    });
   });
 });
