@@ -15,6 +15,7 @@ import { createMondayRuntimeAdapter, detectRuntimeMode, RuntimeMode } from '../b
 import type { RuntimeCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { deriveCapabilities, fullCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { createBuyerApiClient, type BuyerApiClient } from './api/buyerApiClient';
+import type { TenantSettingsInput } from '../shared/types/tenantSettings';
 import { Icon } from './components/Icon';
 import { ErrorBoundary } from './ErrorBoundary';
 import { OnboardingFlow } from './onboarding/OnboardingFlow';
@@ -159,12 +160,12 @@ export default function App({ supplierService: injSupplier, eventService: injEve
     return () => { cancelled = true; };
   }, [services?.apiClient]);
 
-  const dismissOnboarding = () => {
+  const dismissOnboarding = (config?: TenantSettingsInput) => {
     try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
     setShowOnboarding(false);
     if (services?.apiClient) {
       services.apiClient.getSettings()
-        .then(s => services.apiClient!.updateSettings({ onboardingCompletedAt: new Date().toISOString() }, s.version))
+        .then(s => services.apiClient!.updateSettings({ ...config, onboardingCompletedAt: new Date().toISOString() }, s.version))
         .catch(() => { /* best-effort — localStorage already recorded completion for this browser */ });
     }
   };
@@ -200,7 +201,7 @@ export default function App({ supplierService: injSupplier, eventService: injEve
 
   return (
     <ErrorBoundary>
-      {showOnboarding && <OnboardingFlow onComplete={dismissOnboarding} onSkip={dismissOnboarding} />}
+      {showOnboarding && <OnboardingFlow apiClient={services?.apiClient} onComplete={dismissOnboarding} onSkip={() => dismissOnboarding()} />}
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">

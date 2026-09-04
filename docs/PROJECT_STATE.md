@@ -108,6 +108,25 @@ None of these use in-memory storage in production — the fallback exists only f
 4. **`MONDAY_SIGNING_SECRET` verification (`verifyMondaySignedRequest`, HMAC-based)** exists as a tested utility function but nothing calls it — no board/item integration webhook route exists in this app. (The separate app-lifecycle webhook, which uses the Client Secret not the Signing Secret, is now implemented — see Deployment State above.)
 5. **No actual browser/visual QA was possible this pass** — no screenshot or browser automation tool was available in this environment. Every UI/dark-mode/responsive claim is verified by reading source, not by looking at rendered output. See the Visual/Dark Mode section above for the one concrete defect found and fixed this way, and what was deliberately not attempted without visual feedback.
 
+## Final Gap Closure Pass — status against the original 12-item list
+
+Audited against actual code (not commit messages) at the start of this pass, then closed incrementally:
+
+1. Documents frontend — **DONE** (prior session)
+2. Excel Quote Import frontend — **DONE this pass**: backend (`generateQuoteTemplateCsv`/`parseQuoteImportCsv`) existed with full test coverage but no caller anywhere. Wired `quoteTemplateUrl`/`importQuote` into `portalApiClient.ts` and the supplier `PortalApp.tsx` (download template, import CSV, merge parsed rows into the editable form — never auto-submits).
+3. Real onboarding configuration wizard — **DONE this pass**: `OnboardingFlow.tsx` was a 4-slide read-only tour that persisted nothing but a completion timestamp. Replaced with a real wizard that collects organization identity, sourcing defaults, and evaluation weights, backed by the same `TenantSettingsService` the Settings page uses.
+4. Full dialog/drawer focus trapping — **Already DONE**, audit corrected: `SupplierDetailsDrawer`/`SupplierSourceDrawer` inherit `useModalA11y` via the shared `Drawer` wrapper (not directly importing it, which an earlier grep-only check missed). `CreateEventWizard` is a full-page view, not an overlay dialog, so it correctly has no focus trap.
+5. Full WCAG-oriented accessibility pass — **Still open**. Coverage is uneven across large forms; no contrast audit has been run (no browser tooling available in this environment).
+6. Full 9-viewport responsive matrix — **Still open**. Breakpoints are ad hoc per-section, not a named tier system.
+7. Mobile-specific Bid Matrix ranked-card experience — **DONE** (prior session), confirmed genuinely wired into `ComparisonPanel`/`EventDetailDrawer`.
+8. monday live-theme-change listener — **DONE** (prior session), confirmed genuinely applying theme changes via `listenContext`.
+9. Server-side Award role/capability enforcement — **DONE this pass**: was frontend-button-only, trivially bypassed. See Security Architecture above.
+10. RFQ Builder full visual/premium pass — **Still open**. `styles.css`'s `.rfq-*`/status-badge rules still hardcode hex instead of `var(--color-*)` tokens (patched for dark mode with `!important` overrides rather than fixed at the source).
+11. Event Detail complete workspace visual pass — **Still open**. `EventDetailDrawer.tsx` has ~9 inline `style={{color: '#...'}}` blocks bypassing the token system entirely.
+12. Supplier Portal complete visual/mobile QA — **Still open**. Only one mobile breakpoint (700px); no card-fallback pattern for `.portal-table` at narrow widths, unlike the RFQ/supplier tables.
+
+Items 5, 6, 10, 11, 12 are genuinely still open — real visual/accessibility work across large surfaces, and (per the Visual/Dark Mode section above) this environment has no browser/screenshot tooling to verify changes against, which is exactly why the previous pass deliberately left them rather than risk a blind regression.
+
 ## Manual Actions Still Required (genuinely cannot be done from code/CLI)
 
 1. **Register the lifecycle webhook URL** in Developer Center: Developer Center → Ariavel Sourcing → current Draft → App Events (Webhooks) → set the endpoint to `https://a3622-service-36719779-d5e6fb88.us.monday.app/api/lifecycle/events` (verify this is still the current server URL first — it can change if the app version's deployment is recreated). Not configured automatically this pass, per instruction not to activate Developer Center webhooks without explicit authorization.

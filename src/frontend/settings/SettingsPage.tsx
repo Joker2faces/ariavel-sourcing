@@ -521,9 +521,8 @@ function BillingSection() {
           'Commercial Evaluation',
           'Award Workspace',
           'Audit Log',
-          // Document Attachments and Excel Quote Import have backend support
-          // but no reachable buyer/supplier UI yet — not advertised until
-          // there's an actual screen for them.
+          'Document Attachments',
+          'Excel Quote Import',
         ].map(f => (
           <div key={f} className="settings-feature-row">
             <span className="settings-feature-check" aria-hidden="true">✓</span>
