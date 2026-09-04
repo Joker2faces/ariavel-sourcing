@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ComparisonSnapshot, NormalizedQuoteLine, BidLineException } from '../../shared/types/bid';
+import type { ComparisonSnapshot, NormalizedQuote, NormalizedQuoteLine, BidLineException, LineBestPrice } from '../../shared/types/bid';
 import type { SourcingLine } from '../../shared/types/domain';
 
 interface Props {
@@ -64,6 +64,8 @@ type MatrixView = 'landed_cost' | 'unit_price' | 'extended_cost';
 export function BidMatrix({ snapshot, eventLines, baseCurrency, onExportCsv }: Props) {
   const [view, setView] = useState<MatrixView>('landed_cost');
   const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
+  const [mobileLineIndex, setMobileLineIndex] = useState(0);
+  const [mobileExpandedId, setMobileExpandedId] = useState<string | null>(null);
 
   const { normalizedQuotes, lineBestPrices, supplierScores } = snapshot;
 
@@ -219,6 +221,18 @@ export function BidMatrix({ snapshot, eventLines, baseCurrency, onExportCsv }: P
         </table>
       </div>
 
+      <MobileBidComparison
+        eventLines={eventLines}
+        normalizedQuotes={normalizedQuotes}
+        lineBestPrices={lineBestPrices}
+        supplierScores={supplierScores}
+        baseCurrency={baseCurrency}
+        lineIndex={mobileLineIndex}
+        onLineIndexChange={setMobileLineIndex}
+        expandedId={mobileExpandedId}
+        onToggleExpanded={id => setMobileExpandedId(prev => prev === id ? null : id)}
+      />
+
       {/* Best price per line summary */}
       <div className="bid-line-summary">
         <h4>Best price by line</h4>
@@ -243,6 +257,141 @@ export function BidMatrix({ snapshot, eventLines, baseCurrency, onExportCsv }: P
         </div>
       </div>
     </section>
+  );
+}
+
+// ── Mobile Bid Comparison ───────────────────────────────────────────────────
+// The desktop matrix (supplier columns across, RFQ lines down) doesn't fit a
+// phone screen — squeezing it in would mean unreadable 40px-wide columns.
+// Instead: pick one RFQ line at a time, see every supplier's bid for just
+// that line ranked best-to-worst as a stack of cards.
+
+interface MobileBidComparisonProps {
+  eventLines: SourcingLine[];
+  normalizedQuotes: NormalizedQuote[];
+  lineBestPrices: LineBestPrice[];
+  supplierScores: ComparisonSnapshot['supplierScores'];
+  baseCurrency: string;
+  lineIndex: number;
+  onLineIndexChange: (i: number) => void;
+  expandedId: string | null;
+  onToggleExpanded: (supplierId: string) => void;
+}
+
+function MobileBidComparison({
+  eventLines, normalizedQuotes, lineBestPrices, supplierScores, baseCurrency,
+  lineIndex, onLineIndexChange, expandedId, onToggleExpanded,
+}: MobileBidComparisonProps) {
+  if (eventLines.length === 0) return null;
+  const clampedIndex = Math.min(lineIndex, eventLines.length - 1);
+  const line = eventLines[clampedIndex];
+  const best = lineBestPrices.find(b => b.lineId === line.id);
+
+  const ranked = normalizedQuotes
+    .map(nq => ({ nq, ql: nq.lines.find(l => l.lineId === line.id) }))
+    .filter((r): r is { nq: NormalizedQuote; ql: NormalizedQuoteLine } => Boolean(r.ql))
+    .sort((a, b) => {
+      const aBid = !a.ql.isNoBid && a.ql.landedUnitCost != null;
+      const bBid = !b.ql.isNoBid && b.ql.landedUnitCost != null;
+      if (aBid && !bBid) return -1;
+      if (!aBid && bBid) return 1;
+      if (aBid && bBid) return (a.ql.landedUnitCost ?? 0) - (b.ql.landedUnitCost ?? 0);
+      return 0;
+    });
+
+  return (
+    <div className="bid-mobile" aria-label="Mobile bid comparison">
+      <div className="bid-mobile-line-nav">
+        <button
+          className="icon-button" aria-label="Previous line" disabled={clampedIndex === 0}
+          onClick={() => onLineIndexChange(clampedIndex - 1)}
+        >‹</button>
+        <select
+          className="bid-mobile-line-select" aria-label="Select RFQ line" value={line.id}
+          onChange={e => onLineIndexChange(eventLines.findIndex(l => l.id === e.target.value))}
+        >
+          {eventLines.map((l, i) => <option key={l.id} value={l.id}>{i + 1}. {l.description}</option>)}
+        </select>
+        <button
+          className="icon-button" aria-label="Next line" disabled={clampedIndex === eventLines.length - 1}
+          onClick={() => onLineIndexChange(clampedIndex + 1)}
+        >›</button>
+      </div>
+
+      <div className="bid-mobile-line-meta">
+        <span>{line.quantity.toLocaleString()} {line.unit}</span>
+        {line.targetUnitPrice != null && <span>Target {fmt(line.targetUnitPrice)} {baseCurrency}</span>}
+        {best?.potentialSavings != null && (
+          <span className={best.potentialSavings > 0 ? 'saving' : 'overage'}>
+            {best.potentialSavings > 0 ? `Best saves ${fmt(best.potentialSavings, 0)}` : `Best over by ${fmt(Math.abs(best.potentialSavings), 0)}`}
+          </span>
+        )}
+      </div>
+
+      <div className="bid-mobile-cards">
+        {ranked.map(({ nq, ql }, rank) => {
+          const score = supplierScores.find(s => s.supplierId === nq.supplierId);
+          const isWinner = best?.winningSupplierId === nq.supplierId;
+          const isExpanded = expandedId === nq.supplierId;
+          const realExceptions = ql.exceptions.filter(e => e !== 'NO_BID');
+
+          if (ql.isNoBid) {
+            return (
+              <div key={nq.supplierId} className="bid-mobile-card no-bid">
+                <div className="bid-mobile-card-head">
+                  <strong>{nq.supplierName}</strong>
+                  <span className="bid-cell-no-bid">NO BID</span>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={nq.supplierId} className={`bid-mobile-card ${isWinner ? 'winner' : ''}`}>
+              <div className="bid-mobile-card-head">
+                <div>
+                  <span className="bid-mobile-rank">#{rank + 1}</span>
+                  <strong>{nq.supplierName}</strong>
+                  {isWinner && <span className="bid-mobile-best-badge">Best value</span>}
+                </div>
+                {score && <span className="bid-score-chip">{fmt(score.totalScore, 0)}</span>}
+              </div>
+              <dl className="bid-mobile-card-grid">
+                <div><dt>Quoted</dt><dd>{fmt(ql.quotedUnitPrice)} {ql.quotedCurrency ?? baseCurrency}</dd></div>
+                <div><dt>Normalized</dt><dd>{fmt(ql.normalizedUnitPrice)} {baseCurrency}</dd></div>
+                <div><dt>Landed</dt><dd className="bid-mobile-landed">{fmt(ql.landedUnitCost)} {baseCurrency}</dd></div>
+                <div><dt>Lead time</dt><dd>{ql.quotedLeadTimeDays != null ? `${ql.quotedLeadTimeDays}d` : '—'}</dd></div>
+                <div><dt>MOQ</dt><dd>{ql.quotedMoq?.toLocaleString() ?? '—'}</dd></div>
+              </dl>
+              {realExceptions.length > 0 && (
+                <div className="bid-mobile-exceptions">
+                  {realExceptions.map(e => <span key={e} className="bid-exception-badge-full">{EXCEPTION_LABEL[e]}</span>)}
+                </div>
+              )}
+              <button className="bid-mobile-details-toggle" aria-expanded={isExpanded} onClick={() => onToggleExpanded(nq.supplierId)}>
+                {isExpanded ? 'Hide breakdown' : 'Landed cost breakdown'}
+              </button>
+              {isExpanded && (
+                <div className="bid-mobile-breakdown">
+                  <div><span>Quoted unit price</span><span>{fmt(ql.normalizedUnitPrice)}</span></div>
+                  {ql.freightAllocation ? <div><span>+ Freight</span><span>{fmt(ql.freightAllocation)}</span></div> : null}
+                  {ql.dutyAmount ? <div><span>+ Duty</span><span>{fmt(ql.dutyAmount)}</span></div> : null}
+                  {ql.handlingAmount ? <div><span>+ Handling</span><span>{fmt(ql.handlingAmount)}</span></div> : null}
+                  {ql.discountAmount ? <div><span>− Discount</span><span>{fmt(Math.abs(ql.discountAmount))}</span></div> : null}
+                  <div className="bid-mobile-breakdown-total"><span>Landed unit cost</span><span>{fmt(ql.landedUnitCost)}</span></div>
+                  {score && (
+                    <div className="bid-mobile-breakdown-score">
+                      <span>Evaluation score</span><span>{fmt(score.totalScore, 0)}/100</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {ranked.length === 0 && <p className="bid-mobile-empty">No quotes for this line yet.</p>}
+      </div>
+    </div>
   );
 }
 
