@@ -12,3 +12,4 @@ coverage/
 code.tar.gz
 security-scan-*.json
 _*.mjs
+.claude/

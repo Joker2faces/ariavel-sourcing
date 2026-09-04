@@ -16,6 +16,7 @@ import type { RuntimeCapabilities } from '../backend/runtime/runtimeCapabilities
 import { deriveCapabilities, fullCapabilities } from '../backend/runtime/runtimeCapabilities';
 import { createBuyerApiClient, type BuyerApiClient } from './api/buyerApiClient';
 import type { TenantSettingsInput } from '../shared/types/tenantSettings';
+import ariavelMark from '../assets/ariavel-mark.png';
 import { Icon } from './components/Icon';
 import { ErrorBoundary } from './ErrorBoundary';
 import { OnboardingFlow } from './onboarding/OnboardingFlow';
@@ -206,7 +207,7 @@ export default function App({ supplierService: injSupplier, eventService: injEve
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark"><Icon name="grid" size={20} /></span>
+          <span className="brand-mark"><img src={ariavelMark} alt="" width={20} height={20} /></span>
           <span className="brand-word"><strong>Ariavel</strong><small>Sourcing</small></span>
         </div>
         <nav aria-label="Primary navigation">{nav.map(item => <button key={item.label} className={`nav-item ${activeNav === item.label ? 'selected' : ''}`} onClick={() => setActiveNav(item.label)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { BuyerApiClient } from '../api/buyerApiClient';
 import type { TenantSettingsInput } from '../../shared/types/tenantSettings';
 import { defaultTenantSettings } from '../../shared/types/tenantSettings';
+import ariavelLogo from '../../assets/ariavel-logo-optimized.png';
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -124,8 +125,8 @@ export function OnboardingFlow({ apiClient, onComplete, onSkip }: Props) {
 
           {step === 0 && (
             <>
-              <div className="onboarding-icon" aria-hidden="true">🎯</div>
-              <h2 className="onboarding-title">Welcome to Ariavel Sourcing</h2>
+              <img src={ariavelLogo} alt="Ariavel Sourcing — Smarter Sourcing. Better Decisions." className="onboarding-brand-logo" />
+              <h2 className="onboarding-title visually-hidden">Welcome to Ariavel Sourcing</h2>
               <p className="onboarding-description">Your end-to-end procurement platform</p>
               <p className="onboarding-detail">
                 In the next few steps we&apos;ll set your organization details, sourcing defaults, and how bids get

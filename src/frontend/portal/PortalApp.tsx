@@ -5,6 +5,7 @@ import type { QuoteInput, QuoteLine, QuotePublicDTO } from '../../server/types/q
 import type { ExcelImportResult } from '../../shared/types/document';
 import { Icon } from '../components/Icon';
 import { Modal } from '../components/Modal';
+import ariavelMark from '../../assets/ariavel-mark.png';
 
 type Phase = 'LOADING' | 'NOT_FOUND' | 'CLOSED' | 'READY' | 'SUBMITTED' | 'ERROR';
 
@@ -365,7 +366,7 @@ export function PortalApp({ token, client }: Props) {
 function PortalHeader({ invitation }: { invitation: InvitationPublicDTO | null }) {
   return (
     <header className="portal-header">
-      <div className="portal-brand"><span className="portal-brand-mark" aria-hidden="true"><Icon name="grid" size={22} /></span>Ariavel Sourcing</div>
+      <div className="portal-brand"><span className="portal-brand-mark" aria-hidden="true"><img src={ariavelMark} alt="" width={26} height={26} /></span>Ariavel Sourcing</div>
       {invitation && (
         <div className="portal-event-info">
           <h1>{invitation.eventTitle}</h1>
@@ -380,7 +381,7 @@ function PortalMessageState({ title, body, action }: { title: string; body: stri
   return (
     <div className="portal-shell">
       <div className="portal-card portal-message">
-        <span className="portal-brand-mark" aria-hidden="true"><Icon name="grid" size={28} /></span>
+        <span className="portal-brand-mark" aria-hidden="true"><img src={ariavelMark} alt="" width={36} height={36} /></span>
         <h1>{title}</h1>
         <p>{body}</p>
         {action}
