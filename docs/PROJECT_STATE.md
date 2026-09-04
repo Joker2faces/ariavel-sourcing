@@ -50,8 +50,9 @@ This pass audited the actual runtime behavior of everything M1–M9 claimed as "
 
 The app makes exactly one class of monday API call: read-only board/column/item queries in `src/backend/providers/mondayApiBoardProvider.ts` (`boards`, board columns, `items_page`). No mutation query, no `me`/`account`/`users` query exists anywhere in the codebase — tenant/user identity comes exclusively from the verified JWT, never from an API call.
 
-- **Required:** `boards:read` — the only scope any code path actually calls.
-- **Not required, deliberately not requested:** `boards:write`, `users:read/write`, `account:read/write`, `me:read`, `workspaces:write`, `docs:write`, `updates:write`, `notifications:write`, `webhooks:write`, `ai:consume`. `me:read`/`account:read` were considered per the completion program's instructions but neither is called anywhere — least privilege.
+- **Required:** `boards:read` — board/column/item queries in `mondayApiBoardProvider.ts`.
+- **Required (added in the Final Gap Closure pass):** `me:read` — `src/server/auth/mondayRoleProvider.ts` calls `query { me { is_admin is_guest is_view_only } }` using the session's `short_lived_token` to enforce Award Workspace mutation permissions server-side (see Security Architecture below). This scope was previously deliberately not requested because nothing called it; that changed once server-side RBAC was implemented — least privilege still holds, it's now genuinely needed.
+- **Not required, deliberately not requested:** `boards:write`, `users:read/write`, `account:read/write`, `workspaces:write`, `docs:write`, `updates:write`, `notifications:write`, `webhooks:write`, `ai:consume`.
 
 ## OAuth Flow — "New OAuth flow" should stay OFF
 
@@ -75,6 +76,7 @@ No browser or screenshot tool is available in this environment, so no actual ren
 
 - JWT auth: `{ dat: { account_id, user_id } }` signed with `MONDAY_CLIENT_SECRET`, verified via `monday.get("sessionToken")` client-side / `jsonwebtoken.verify` server-side
 - Tenant ID: `monday-account-{account_id}` — derived from JWT only, never from body/query/params
+- **Award Workspace mutation routes are role-checked server-side** (`requireAwardEditCapability` in `src/server/middleware/buyerAuth.ts`, applied to every `POST`/`PATCH`/`DELETE` under `/api/buyer/.../award-scenarios*` in `buyerRoutes.ts`). Previously (through commit `df99f05`) "gate Award Workspace mutations behind edit capability" was frontend-only — `AwardWorkspacePage.tsx` disabling buttons based on a client-supplied `RuntimeCapabilities` — which any authenticated tenant member could bypass by calling the API directly, regardless of their actual monday board role. Fixed by independently confirming role via monday's own API (`src/server/auth/mondayRoleProvider.ts`, `query { me { is_admin is_guest is_view_only } }`) using the session's `short_lived_token`, with a 60s in-memory cache per token. A guest or view-only member now gets a `403` from the API itself, not just a disabled button. GET (read) routes are intentionally left open to any authenticated tenant member — only mutations are gated. The router's fallback (no role provider wired) is deny-all (`502`, "unable to verify"), not allow-all — award enforcement can never silently no-op if misconfigured.
 - `MONDAY_SIGNING_SECRET`: defined (`verifyMondaySignedRequest`) but not yet wired to any route — no monday-originated webhook exists yet to verify. Introduce only when one is actually added.
 - NoSQL injection: `noSqlInjectionMiddleware` blocks `$`-prefix / dotted keys
 - Body size: 256 KB hard limit; file uploads: 25 MB, MIME allowlist + magic-byte + dangerous-extension checks

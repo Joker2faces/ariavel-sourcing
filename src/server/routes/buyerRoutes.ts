@@ -5,7 +5,8 @@ import type { BidComparisonService } from '../services/bidComparisonService.js';
 import type { AwardService } from '../services/awardService.js';
 import { AwardScenarioNotFoundError, AwardScenarioFinalizedError, AwardValidationError } from '../services/awardService.js';
 import { InvitationNotFoundError, InvitationInvalidStatusError } from '../services/invitationService.js';
-import { tenantIdFromAuth, userIdFromAuth } from '../middleware/buyerAuth.js';
+import { tenantIdFromAuth, userIdFromAuth, requireAwardEditCapability } from '../middleware/buyerAuth.js';
+import type { MondayRoleProvider } from '../auth/mondayRoleProvider.js';
 import type { SourcingLine } from '../../shared/types/domain.js';
 import type { RfqLineSnapshot } from '../types/invitation.js';
 
@@ -18,8 +19,16 @@ export function createBuyerRouter(
   quoteService: QuoteService,
   bidComparisonService?: BidComparisonService,
   awardService?: AwardService,
+  awardRoleProvider?: MondayRoleProvider,
 ): Router {
   const router = Router();
+  // Applied only to award-scenario MUTATION routes below — reads stay open to
+  // any authenticated tenant member. Falls back to a deny-all provider (403 on
+  // every mutation) when the caller wires the router without one, so award
+  // enforcement can never silently no-op.
+  const requireEdit = requireAwardEditCapability(
+    awardRoleProvider ?? (() => Promise.reject(new Error('No award role provider configured'))),
+  );
 
   router.get('/events/:eventId/invitations', async (req: Request, res: Response) => {
     try {
@@ -200,7 +209,7 @@ export function createBuyerRouter(
     res.status(500).json({ error: 'Internal server error' });
   }
 
-  router.post('/events/:eventId/award-scenarios/recommended', async (req: Request, res: Response) => {
+  router.post('/events/:eventId/award-scenarios/recommended', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);
@@ -219,7 +228,7 @@ export function createBuyerRouter(
     } catch (err) { awardErrorResponse(res, err); }
   });
 
-  router.post('/events/:eventId/award-scenarios', async (req: Request, res: Response) => {
+  router.post('/events/:eventId/award-scenarios', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);
@@ -267,7 +276,7 @@ export function createBuyerRouter(
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
-  router.patch('/award-scenarios/:id/lines/:lineId', async (req: Request, res: Response) => {
+  router.patch('/award-scenarios/:id/lines/:lineId', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);
@@ -283,7 +292,7 @@ export function createBuyerRouter(
     } catch (err) { awardErrorResponse(res, err); }
   });
 
-  router.delete('/award-scenarios/:id/lines/:lineId', async (req: Request, res: Response) => {
+  router.delete('/award-scenarios/:id/lines/:lineId', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);
@@ -293,7 +302,7 @@ export function createBuyerRouter(
     } catch (err) { awardErrorResponse(res, err); }
   });
 
-  router.post('/award-scenarios/:id/lines/:lineId/no-award', async (req: Request, res: Response) => {
+  router.post('/award-scenarios/:id/lines/:lineId/no-award', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);
@@ -303,7 +312,7 @@ export function createBuyerRouter(
     } catch (err) { awardErrorResponse(res, err); }
   });
 
-  router.delete('/award-scenarios/:id/lines/:lineId/allocations/:supplierId', async (req: Request, res: Response) => {
+  router.delete('/award-scenarios/:id/lines/:lineId/allocations/:supplierId', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);
@@ -315,7 +324,7 @@ export function createBuyerRouter(
     } catch (err) { awardErrorResponse(res, err); }
   });
 
-  router.post('/award-scenarios/:id/finalize', async (req: Request, res: Response) => {
+  router.post('/award-scenarios/:id/finalize', requireEdit, async (req: Request, res: Response) => {
     if (!awardService) { res.status(501).json({ error: 'Award workspace not enabled' }); return; }
     try {
       const tenantId = tenantIdFromAuth(req);

@@ -24,6 +24,7 @@ import { createInMemoryAwardRepository } from './db/inMemoryAwardRepository.js';
 import { createInMemoryAttachmentRepository } from './db/inMemoryAttachmentRepository.js';
 import { createMondayObjectStorageProvider, createInMemoryObjectStorageProvider, type ObjectStorageProvider, type InMemoryObjectStorageProvider } from './storage/objectStorageProvider.js';
 import { createDefaultSecretProvider } from './secrets/secretProvider.js';
+import { createMondayRoleProvider } from './auth/mondayRoleProvider.js';
 import { createApp, type HealthDependencies } from './app.js';
 
 const PORT = Number(process.env['PORT'] ?? 8080);
@@ -122,6 +123,7 @@ async function start() {
     settingsService,
     auditService,
     dataService,
+    createMondayRoleProvider(),
   );
 
   const server = app.listen(PORT, () => {

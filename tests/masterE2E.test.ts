@@ -28,7 +28,7 @@ const EVENT_LINES = [
 ];
 
 function buyerToken(acctId = ACCOUNT_ID): string {
-  return jwt.sign({ dat: { account_id: acctId, user_id: 1 } }, SECRET);
+  return jwt.sign({ dat: { account_id: acctId, user_id: 1, short_lived_token: 'e2e-slt' } }, SECRET);
 }
 
 let app: Express;
@@ -50,7 +50,11 @@ beforeAll(() => {
   const quoteSvc = createQuoteService(quoteRepo, auditRepo);
   const compSvc = createBidComparisonService(invRepo, quoteSvc, compRepo);
   const awardSvc = createAwardService(awardRepo, compRepo, auditRepo);
-  app = createApp(invSvc, quoteSvc, SECRET, compSvc, awardSvc);
+  app = createApp(
+    invSvc, quoteSvc, SECRET, compSvc, awardSvc,
+    undefined, undefined, undefined, undefined, undefined, undefined,
+    () => Promise.resolve({ isAdmin: false, isGuest: false, isViewOnly: false }),
+  );
   state.token = buyerToken();
 });
 

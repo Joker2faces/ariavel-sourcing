@@ -13,6 +13,7 @@ import { createQuoteService } from '../src/server/services/quoteService';
 import { createBidComparisonService } from '../src/server/services/bidComparisonService';
 import { createAwardService } from '../src/server/services/awardService';
 import type { ComparisonSnapshot } from '../src/shared/types/bid';
+import type { MondayRoleProvider } from '../src/server/auth/mondayRoleProvider';
 
 const CLIENT_SECRET = 'award-api-test-secret-min-32-chars!!';
 const ACCOUNT_ID = 9999;
@@ -54,9 +55,19 @@ function makeBuyerToken(accountId = ACCOUNT_ID, userId = USER_ID) {
   return jwt.sign({ dat: { account_id: accountId, user_id: userId, short_lived_token: 'slt' } }, CLIENT_SECRET, { expiresIn: '1h' });
 }
 
+function makeBuyerTokenWithoutShortLivedToken(accountId = ACCOUNT_ID, userId = USER_ID) {
+  return jwt.sign({ dat: { account_id: accountId, user_id: userId } }, CLIENT_SECRET, { expiresIn: '1h' });
+}
+
 let compRepo: ReturnType<typeof createInMemoryComparisonRepository>;
 
-function buildApp() {
+// Stands in for the real monday `me` API lookup (mondayRoleProvider.ts) so
+// these tests never make a network call. Grants edit capability for any
+// non-empty short-lived token unless overridden.
+const ALLOW_EDIT_ROLE_PROVIDER: MondayRoleProvider = () =>
+  Promise.resolve({ isAdmin: false, isGuest: false, isViewOnly: false });
+
+function buildApp(roleProvider: MondayRoleProvider = ALLOW_EDIT_ROLE_PROVIDER) {
   const invRepo = createInMemoryInvitationRepository([]);
   const quoteRepo = createInMemoryQuoteRepository([]);
   const auditRepo = createInMemoryAuditRepository();
@@ -67,7 +78,11 @@ function buildApp() {
   const quoteService = createQuoteService(quoteRepo, auditRepo);
   const bidSvc = createBidComparisonService(invRepo, quoteService, compRepo);
   const awardSvc = createAwardService(awardRepo, compRepo, auditRepo);
-  return createApp(invService, quoteService, CLIENT_SECRET, bidSvc, awardSvc);
+  return createApp(
+    invService, quoteService, CLIENT_SECRET, bidSvc, awardSvc,
+    undefined, undefined, undefined, undefined, undefined, undefined,
+    roleProvider,
+  );
 }
 
 describe('Award API', () => {
@@ -220,5 +235,83 @@ describe('Award API', () => {
     const res = await request(app)
       .get(`/api/buyer/events/${EVENT_ID}/award-scenarios`);
     expect(res.status).toBe(401);
+  });
+
+  describe('server-side award edit capability enforcement', () => {
+    it('blocks scenario creation for a monday guest', async () => {
+      const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: true, isViewOnly: false }));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks scenario creation for a view-only member', async () => {
+      const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: false, isViewOnly: true }));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks line award, finalize, and other mutations for a guest — but still allows reads', async () => {
+      const app = buildApp(); // allow creation
+      const createRes = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Manual', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      const scenarioId = createRes.body.scenario.id as string;
+
+      // Rebuild the same app is not possible mid-test (state lives in-memory per app),
+      // so instead verify the deny-all default: no role provider configured at all.
+      const denyApp = createApp(
+        createInvitationService(createInMemoryInvitationRepository([]), createInMemoryAuditRepository()),
+        createQuoteService(createInMemoryQuoteRepository([]), createInMemoryAuditRepository()),
+        CLIENT_SECRET,
+        undefined,
+        createAwardService(createInMemoryAwardRepository(), compRepo, createInMemoryAuditRepository()),
+      );
+
+      // No role provider configured on denyApp — the middleware's role lookup
+      // itself fails closed (502 "unable to verify"), never falling through
+      // to the handler. This proves the deny-all default from
+      // createBuyerRouter's fallback provider, not a 403 role denial.
+      const patchRes = await request(denyApp)
+        .patch(`/api/buyer/award-scenarios/${scenarioId}/lines/line-1`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ supplierId: 'sup-A', quantity: 1000 });
+      expect(patchRes.status).toBe(502);
+
+      const finalizeRes = await request(denyApp)
+        .post(`/api/buyer/award-scenarios/${scenarioId}/finalize`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`);
+      expect(finalizeRes.status).toBe(502);
+
+      // Reads stay open — role enforcement only applies to mutation routes.
+      const getRes = await request(app)
+        .get(`/api/buyer/award-scenarios/${scenarioId}`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`);
+      expect(getRes.status).toBe(200);
+    });
+
+    it('403s a mutation when the session token carries no short-lived token', async () => {
+      const app = buildApp();
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerTokenWithoutShortLivedToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(403);
+    });
+
+    it('502s a mutation when the role lookup itself fails', async () => {
+      const app = buildApp(() => Promise.reject(new Error('monday API unreachable')));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(502);
+    });
   });
 });

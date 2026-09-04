@@ -13,6 +13,7 @@ import type { TenantSettingsService } from './services/tenantSettingsService.js'
 import type { AuditService } from './services/auditService.js';
 import type { TenantDataService } from './services/tenantDataService.js';
 import { createBuyerAuthMiddleware } from './middleware/buyerAuth.js';
+import type { MondayRoleProvider } from './auth/mondayRoleProvider.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { noSqlInjectionMiddleware } from './middleware/noSqlInjection.js';
 import { createBuyerRouter } from './routes/buyerRoutes.js';
@@ -46,6 +47,7 @@ export function createApp(
   settingsService?: TenantSettingsService,
   auditService?: AuditService,
   dataService?: TenantDataService,
+  awardRoleProvider?: MondayRoleProvider,
 ) {
   const app = express();
 
@@ -109,7 +111,7 @@ export function createApp(
 
   const buyerAuth = createBuyerAuthMiddleware(clientSecret);
 
-  app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerRouter(invitationService, quoteService, bidComparisonService, awardService));
+  app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerRouter(invitationService, quoteService, bidComparisonService, awardService, awardRoleProvider));
   if (documentService) {
     app.use('/api/buyer', BUYER_RATE_LIMIT, buyerAuth, createBuyerDocumentRouter(documentService));
     app.use('/api/portal', PORTAL_RATE_LIMIT, createPortalDocumentRouter(documentService, invitationService));
