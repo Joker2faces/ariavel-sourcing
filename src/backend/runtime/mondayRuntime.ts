@@ -69,6 +69,27 @@ export interface MondayRuntimeAdapter {
 
 const MONDAY_API_VERSION = '2026-07';
 
+// sdk.get() resolves via a postMessage round-trip to the parent monday
+// frame and carries no timeout of its own. If that reply is ever dropped —
+// e.g. the parent frame is mid-navigation when the request is sent — the
+// call hangs forever with no way for calling code to recover. Real UAT
+// evidence: the Settings page can get stuck on "Loading settings…"
+// indefinitely, and the deployed service's HTTP access log shows zero
+// requests ever reaching GET /api/buyer/settings during that session —
+// meaning the hang happens before the network request is even sent, at the
+// sessionToken round-trip this bounds.
+const SESSION_TOKEN_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      value => { clearTimeout(timer); resolve(value); },
+      err => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 interface MondaySdkInstance {
   setApiVersion(v: string): void;
   get(type: string, params?: Record<string, unknown>): Promise<{ data: unknown }>;
@@ -103,7 +124,7 @@ export function createMondayRuntimeAdapter(): MondayRuntimeAdapter {
     },
 
     async getSessionToken(): Promise<string> {
-      const result = await sdk.get('sessionToken');
+      const result = await withTimeout(sdk.get('sessionToken'), SESSION_TOKEN_TIMEOUT_MS, 'Timed out waiting for monday session token');
       return result.data as string;
     },
 

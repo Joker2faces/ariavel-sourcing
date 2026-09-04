@@ -22,22 +22,25 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: 'billing', label: 'Billing' },
 ];
 
+type LoadState = 'LOADING' | 'LOADED' | 'ERROR';
+
 export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, apiClient = null }: Props) {
   const [active, setActive] = useState<Section>('organization');
   const [settings, setSettings] = useState<TenantSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<LoadState>('LOADING');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!apiClient) { setSettings(defaultTenantSettings('local', new Date().toISOString())); setLoading(false); return; }
+    if (!apiClient) { setSettings(defaultTenantSettings('local', new Date().toISOString())); setLoadState('LOADED'); return; }
     let cancelled = false;
+    setLoadState('LOADING');
     apiClient.getSettings()
-      .then(s => { if (!cancelled) setSettings(s); })
-      .catch(() => { if (!cancelled) setNotice({ tone: 'error', text: 'Could not load settings from the server.' }); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .then(s => { if (!cancelled) { setSettings(s); setLoadState('LOADED'); } })
+      .catch(() => { if (!cancelled) setLoadState('ERROR'); });
     return () => { cancelled = true; };
-  }, [apiClient]);
+  }, [apiClient, loadAttempt]);
 
   async function save(input: TenantSettingsInput) {
     if (!apiClient || !settings) { setNotice({ tone: 'error', text: 'Not connected to the server.' }); return; }
@@ -61,7 +64,19 @@ export function SettingsPage({ capabilities, serverBaseUrl, serverAvailable, api
     }
   }
 
-  if (loading || !settings) {
+  if (loadState === 'ERROR') {
+    return (
+      <div className="content-wrap">
+        <div className="page-heading"><div><h1>Settings</h1></div></div>
+        <div className="notice notice-error" role="alert">
+          <p>Could not load settings from the server.</p>
+          <button className="secondary-button" onClick={() => setLoadAttempt(n => n + 1)}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadState === 'LOADING' || !settings) {
     return <div className="content-wrap"><div className="page-heading"><div><h1>Settings</h1></div></div><p>Loading settings…</p></div>;
   }
 
