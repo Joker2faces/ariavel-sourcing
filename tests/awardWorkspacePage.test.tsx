@@ -133,4 +133,19 @@ describe('AwardWorkspacePage', () => {
     expect(await screen.findByText('Manual override')).toBeInTheDocument();
     expect(screen.getByText(/Preferred supplier for continuity/)).toBeInTheDocument();
   });
+
+  it('hides mutating actions for a viewer without edit capability', async () => {
+    const user = userEvent.setup();
+    const client = mockClient({ listAwardScenarios: vi.fn().mockResolvedValue([makeScenario()]), getAwardScenario: vi.fn().mockResolvedValue(makeScenario()) });
+    render(<AwardWorkspacePage eventService={mockEventService()} apiClient={client} serverAvailable={true} capabilities={{ canViewSuppliers: true, canEditAriavelSuppliers: false, canConfigureSupplierSource: false }} />);
+    await user.selectOptions(await screen.findByLabelText('Select sourcing event'), 'ev-1');
+
+    expect(screen.queryByText('+ Recommended scenario')).not.toBeInTheDocument();
+    expect(screen.queryByText('+ Blank scenario')).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('button', { name: 'Open Recommended' }));
+    await screen.findByText('Total awarded cost');
+    expect(screen.queryByText('Finalize award')).not.toBeInTheDocument();
+    expect(screen.queryByText('Clear line')).not.toBeInTheDocument();
+  });
 });

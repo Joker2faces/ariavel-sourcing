@@ -4,6 +4,8 @@ import type { SourcingEventService } from '../../backend/services/sourcingEventS
 import type { BuyerApiClient } from '../api/buyerApiClient';
 import type { AwardScenario, AwardLine } from '../../shared/types/award';
 import type { ComparisonSnapshot, NormalizedQuote } from '../../shared/types/bid';
+import type { RuntimeCapabilities } from '../../backend/runtime/runtimeCapabilities';
+import { fullCapabilities } from '../../backend/runtime/runtimeCapabilities';
 import { KpiCard } from '../components/KpiCard';
 import { StatusChip, type ChipTone } from '../components/StatusChip';
 import { RowActions } from '../components/RowActions';
@@ -12,6 +14,7 @@ interface Props {
   eventService: SourcingEventService;
   apiClient: BuyerApiClient | null;
   serverAvailable: boolean;
+  capabilities?: RuntimeCapabilities;
 }
 
 function fmt(n: number | undefined, decimals = 2): string {
@@ -19,7 +22,8 @@ function fmt(n: number | undefined, decimals = 2): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-export function AwardWorkspacePage({ eventService, apiClient }: Props) {
+export function AwardWorkspacePage({ eventService, apiClient, capabilities = fullCapabilities }: Props) {
+  const canEdit = capabilities.canEditAriavelSuppliers;
   const [events, setEvents] = useState<SourcingEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [scenarios, setScenarios] = useState<AwardScenario[]>([]);
@@ -154,8 +158,8 @@ export function AwardWorkspacePage({ eventService, apiClient }: Props) {
         </select>
         {selectedEvent && (
           <>
-            <button className="secondary-button" disabled={busy} onClick={() => createScenario('recommended')}>+ Recommended scenario</button>
-            <button className="secondary-button" disabled={busy} onClick={() => createScenario('empty')}>+ Blank scenario</button>
+            {canEdit && <button className="secondary-button" disabled={busy} onClick={() => createScenario('recommended')}>+ Recommended scenario</button>}
+            {canEdit && <button className="secondary-button" disabled={busy} onClick={() => createScenario('empty')}>+ Blank scenario</button>}
             {scenario && <button className="secondary-button" onClick={() => setSelectedScenarioId('')}>← Back to scenarios</button>}
           </>
         )}
@@ -209,6 +213,7 @@ export function AwardWorkspacePage({ eventService, apiClient }: Props) {
           scenario={scenario}
           snapshot={snapshot}
           busy={busy}
+          readOnly={!canEdit}
           onAllocate={handleAllocate}
           onRemoveAllocation={handleRemoveAllocation}
           onClearLine={handleClearLine}
@@ -232,18 +237,19 @@ function candidatesForLine(snapshot: ComparisonSnapshot | null, lineId: string):
 }
 
 function AwardScenarioEditor({
-  scenario, snapshot, busy, onAllocate, onRemoveAllocation, onClearLine, onMarkNoAward, onFinalize,
+  scenario, snapshot, busy, readOnly = false, onAllocate, onRemoveAllocation, onClearLine, onMarkNoAward, onFinalize,
 }: {
   scenario: AwardScenario;
   snapshot: ComparisonSnapshot | null;
   busy: boolean;
+  readOnly?: boolean;
   onAllocate: (lineId: string, supplierId: string, quantity: number, overrideReason?: string) => void;
   onRemoveAllocation: (lineId: string, supplierId: string) => void;
   onClearLine: (lineId: string) => void;
   onMarkNoAward: (lineId: string) => void;
   onFinalize: () => void;
 }) {
-  const canFinalize = !scenario.isFinalized && scenario.lines.every(l => l.status !== 'PENDING');
+  const canFinalize = !readOnly && !scenario.isFinalized && scenario.lines.every(l => l.status !== 'PENDING');
   const [confirming, setConfirming] = useState(false);
   const overriddenLines = scenario.lines.filter(l => l.isManualOverride);
 
@@ -261,7 +267,7 @@ function AwardScenarioEditor({
           <AwardLineRow
             key={line.lineId}
             line={line}
-            disabled={scenario.isFinalized || busy}
+            disabled={scenario.isFinalized || busy || readOnly}
             candidates={candidatesForLine(snapshot, line.lineId)}
             winningSupplierId={snapshot?.lineBestPrices.find(b => b.lineId === line.lineId)?.winningSupplierId}
             onAllocate={(supplierId, quantity, reason) => onAllocate(line.lineId, supplierId, quantity, reason)}
@@ -274,9 +280,9 @@ function AwardScenarioEditor({
 
       {scenario.isFinalized ? (
         <div className="notice" role="status">Finalized {scenario.finalizedAt ? new Date(scenario.finalizedAt).toLocaleString() : ''} — this award is now immutable.</div>
-      ) : (
+      ) : !readOnly ? (
         <button className="primary-button" disabled={!canFinalize || busy} onClick={() => setConfirming(true)}>Finalize award</button>
-      )}
+      ) : null}
 
       {confirming && (
         <div className="portal-modal-overlay" role="presentation">
