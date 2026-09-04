@@ -85,7 +85,7 @@ describe('AwardWorkspacePage', () => {
     const client = mockClient({ listAwardScenarios: vi.fn().mockResolvedValue([makeScenario()]), getAwardScenario: vi.fn().mockResolvedValue(makeScenario()) });
     render(<AwardWorkspacePage eventService={mockEventService()} apiClient={client} serverAvailable={true} />);
     await user.selectOptions(await screen.findByLabelText('Select sourcing event'), 'ev-1');
-    await user.selectOptions(await screen.findByLabelText('Select award scenario'), 'scn-1');
+    await user.click(await screen.findByRole('button', { name: 'Open Recommended' }));
 
     expect(await screen.findByText('Finalize award')).toBeInTheDocument();
     expect(screen.getByText(/Alpha — 100 pcs/)).toBeInTheDocument();
@@ -101,10 +101,36 @@ describe('AwardWorkspacePage', () => {
     });
     render(<AwardWorkspacePage eventService={mockEventService()} apiClient={client} serverAvailable={true} />);
     await user.selectOptions(await screen.findByLabelText('Select sourcing event'), 'ev-1');
-    await user.selectOptions(await screen.findByLabelText('Select award scenario'), 'scn-1');
+    await user.click(await screen.findByRole('button', { name: 'Open Recommended' }));
 
     await user.click(await screen.findByText('Finalize award'));
+    expect(screen.getByText('Finalize this award?')).toBeInTheDocument();
+    await user.click(screen.getAllByText('Finalize award')[1]);
     await waitFor(() => expect(client.finalizeAwardScenario).toHaveBeenCalledWith('scn-1'));
     expect(await screen.findByText(/this award is now immutable/)).toBeInTheDocument();
+  });
+
+  it('shows a scenario summary with KPIs and lets a buyer open one from the list', async () => {
+    const user = userEvent.setup();
+    const finalizedScenario = makeScenario({ id: 'scn-2', name: 'Finalized award', isFinalized: true, summary: { totalAllocatedCost: 1200, totalSavings: 80, savingsPercent: 6.25, supplierCount: 1, lineCount: 1, awardedLineCount: 1, noAwardLineCount: 0, supplierConcentration: [] } });
+    const client = mockClient({ listAwardScenarios: vi.fn().mockResolvedValue([makeScenario(), finalizedScenario]) });
+    render(<AwardWorkspacePage eventService={mockEventService()} apiClient={client} serverAvailable={true} />);
+    await user.selectOptions(await screen.findByLabelText('Select sourcing event'), 'ev-1');
+
+    expect(await screen.findByText('Draft scenarios')).toBeInTheDocument();
+    expect(screen.getByText('Finalized awards')).toBeInTheDocument();
+    expect(screen.getByText('Finalized award')).toBeInTheDocument();
+  });
+
+  it('shows a manual-override banner when a line was awarded off-recommendation', async () => {
+    const user = userEvent.setup();
+    const overriddenScenario = makeScenario({ lines: [{ ...makeScenario().lines[0], isManualOverride: true, overrideReason: 'Preferred supplier for continuity' }] });
+    const client = mockClient({ listAwardScenarios: vi.fn().mockResolvedValue([overriddenScenario]), getAwardScenario: vi.fn().mockResolvedValue(overriddenScenario) });
+    render(<AwardWorkspacePage eventService={mockEventService()} apiClient={client} serverAvailable={true} />);
+    await user.selectOptions(await screen.findByLabelText('Select sourcing event'), 'ev-1');
+    await user.click(await screen.findByRole('button', { name: 'Open Recommended' }));
+
+    expect(await screen.findByText('Manual override')).toBeInTheDocument();
+    expect(screen.getByText(/Preferred supplier for continuity/)).toBeInTheDocument();
   });
 });

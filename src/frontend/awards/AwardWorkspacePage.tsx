@@ -4,6 +4,9 @@ import type { SourcingEventService } from '../../backend/services/sourcingEventS
 import type { BuyerApiClient } from '../api/buyerApiClient';
 import type { AwardScenario, AwardLine } from '../../shared/types/award';
 import type { ComparisonSnapshot, NormalizedQuote } from '../../shared/types/bid';
+import { KpiCard } from '../components/KpiCard';
+import { StatusChip, type ChipTone } from '../components/StatusChip';
+import { RowActions } from '../components/RowActions';
 
 interface Props {
   eventService: SourcingEventService;
@@ -150,15 +153,10 @@ export function AwardWorkspacePage({ eventService, apiClient }: Props) {
           {events.map(e => <option key={e.id} value={e.id}>{e.reference} — {e.title}</option>)}
         </select>
         {selectedEvent && (
-          <select className="settings-select" value={selectedScenarioId} onChange={e => setSelectedScenarioId(e.target.value)} aria-label="Select award scenario">
-            <option value="">Select a scenario…</option>
-            {scenarios.map(s => <option key={s.id} value={s.id}>{s.name}{s.isFinalized ? ' (finalized)' : ''}</option>)}
-          </select>
-        )}
-        {selectedEvent && !scenario && (
           <>
             <button className="secondary-button" disabled={busy} onClick={() => createScenario('recommended')}>+ Recommended scenario</button>
             <button className="secondary-button" disabled={busy} onClick={() => createScenario('empty')}>+ Blank scenario</button>
+            {scenario && <button className="secondary-button" onClick={() => setSelectedScenarioId('')}>← Back to scenarios</button>}
           </>
         )}
       </div>
@@ -167,8 +165,43 @@ export function AwardWorkspacePage({ eventService, apiClient }: Props) {
         <div className="empty-state"><h2>Choose a sourcing event</h2><p>Select an event above to view or create award scenarios.</p></div>
       )}
 
-      {selectedEvent && !scenario && scenarios.length === 0 && (
-        <div className="empty-state"><h2>No award scenarios yet</h2><p>Create a recommended scenario (lowest landed cost per line) or start from a blank one.</p></div>
+      {selectedEvent && !scenario && (
+        scenarios.length === 0 ? (
+          <div className="empty-state"><h2>No award scenarios yet</h2><p>Create a recommended scenario (lowest landed cost per line) or start from a blank one.</p></div>
+        ) : (
+          <>
+            <div className="kpi-row kpi-row-4" aria-label="Award scenario summary">
+              <KpiCard icon="clipboard" label="Draft scenarios" value={scenarios.filter(s => !s.isFinalized).length} tone="neutral" />
+              <KpiCard icon="check" label="Finalized awards" value={scenarios.filter(s => s.isFinalized).length} tone="success" />
+              <KpiCard icon="trophy" label="Awarded value" value={fmt(scenarios.filter(s => s.isFinalized).reduce((sum, s) => sum + s.summary.totalAllocatedCost, 0), 0)} tone="info" />
+              <KpiCard icon="grid" label="Estimated savings" value={fmt(scenarios.filter(s => s.isFinalized).reduce((sum, s) => sum + (s.summary.totalSavings ?? 0), 0), 0)} tone="warning" />
+            </div>
+            <div className="rfq-panel">
+              <div className="rfq-table-wrap">
+                <table className="rfq-table">
+                  <thead>
+                    <tr>
+                      <th>Scenario</th><th>Status</th><th>Suppliers</th><th>Award value</th><th>Savings</th><th>Updated</th><th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scenarios.map(s => (
+                      <tr key={s.id}>
+                        <td><button className="supplier-link" onClick={() => setSelectedScenarioId(s.id)}>{s.name}</button></td>
+                        <td><StatusChip label={s.isFinalized ? 'Finalized' : 'Draft'} tone={s.isFinalized ? 'success' : 'neutral'} /></td>
+                        <td className="num">{s.summary.supplierCount}</td>
+                        <td className="num">{fmt(s.summary.totalAllocatedCost, 0)}</td>
+                        <td className="num">{s.summary.totalSavings != null ? `${fmt(s.summary.totalSavings, 0)} (${fmt(s.summary.savingsPercent, 1)}%)` : '—'}</td>
+                        <td>{new Date(s.updatedAt).toLocaleDateString()}</td>
+                        <td><RowActions primaryLabel="Open" onPrimary={() => setSelectedScenarioId(s.id)} ariaLabelSuffix={s.name} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )
       )}
 
       {scenario && (
@@ -211,14 +244,16 @@ function AwardScenarioEditor({
   onFinalize: () => void;
 }) {
   const canFinalize = !scenario.isFinalized && scenario.lines.every(l => l.status !== 'PENDING');
+  const [confirming, setConfirming] = useState(false);
+  const overriddenLines = scenario.lines.filter(l => l.isManualOverride);
 
   return (
     <div className="award-editor">
-      <div className="award-summary-grid">
-        <SummaryTile label="Award type" value={scenario.awardType} />
-        <SummaryTile label="Total awarded cost" value={fmt(scenario.summary.totalAllocatedCost)} />
-        <SummaryTile label="Savings vs. target" value={scenario.summary.totalSavings != null ? `${fmt(scenario.summary.totalSavings)} (${fmt(scenario.summary.savingsPercent, 1)}%)` : '—'} />
-        <SummaryTile label="Suppliers" value={String(scenario.summary.supplierCount)} />
+      <div className="kpi-row kpi-row-4" aria-label="Scenario summary">
+        <KpiCard icon="clipboard" label="Award type" value={scenario.awardType === 'SPLIT' ? 'Split' : scenario.awardType === 'LINE' ? 'Per line' : 'Whole'} tone="neutral" />
+        <KpiCard icon="trophy" label="Total awarded cost" value={fmt(scenario.summary.totalAllocatedCost, 0)} tone="info" />
+        <KpiCard icon="check" label="Savings vs. target" value={scenario.summary.totalSavings != null ? `${fmt(scenario.summary.totalSavings, 0)} (${fmt(scenario.summary.savingsPercent, 1)}%)` : '—'} tone="success" />
+        <KpiCard icon="users" label="Suppliers" value={scenario.summary.supplierCount} tone="neutral" />
       </div>
 
       <div className="award-lines">
@@ -240,14 +275,34 @@ function AwardScenarioEditor({
       {scenario.isFinalized ? (
         <div className="notice" role="status">Finalized {scenario.finalizedAt ? new Date(scenario.finalizedAt).toLocaleString() : ''} — this award is now immutable.</div>
       ) : (
-        <button className="primary-button" disabled={!canFinalize || busy} onClick={onFinalize}>Finalize award</button>
+        <button className="primary-button" disabled={!canFinalize || busy} onClick={() => setConfirming(true)}>Finalize award</button>
+      )}
+
+      {confirming && (
+        <div className="portal-modal-overlay" role="presentation">
+          <div className="portal-modal award-finalize-modal" role="dialog" aria-modal="true" aria-label="Confirm award finalization">
+            <h2>Finalize this award?</h2>
+            <p>Once finalized, allocations cannot be changed. This is a consequential, audited action.</p>
+            <dl className="award-finalize-summary">
+              <div><dt>Winning suppliers</dt><dd>{scenario.summary.supplierCount}</dd></div>
+              <div><dt>Total awarded cost</dt><dd>{fmt(scenario.summary.totalAllocatedCost, 0)}</dd></div>
+              <div><dt>Savings vs. target</dt><dd>{scenario.summary.totalSavings != null ? `${fmt(scenario.summary.totalSavings, 0)} (${fmt(scenario.summary.savingsPercent, 1)}%)` : '—'}</dd></div>
+              <div><dt>Manual overrides</dt><dd>{overriddenLines.length}</dd></div>
+            </dl>
+            {overriddenLines.length > 0 && (
+              <div className="award-override-banner" role="note">
+                {overriddenLines.length} line{overriddenLines.length === 1 ? '' : 's'} awarded to a supplier other than the lowest landed cost. Rationale is preserved in the audit trail.
+              </div>
+            )}
+            <div className="portal-modal-actions">
+              <button className="secondary-button" onClick={() => setConfirming(false)} disabled={busy}>Go back</button>
+              <button className="primary-button" onClick={() => { setConfirming(false); onFinalize(); }} disabled={busy}>{busy ? 'Finalizing…' : 'Finalize award'}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
-}
-
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return <div className="award-summary-tile"><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function AwardLineRow({
@@ -264,10 +319,13 @@ function AwardLineRow({
 }) {
   const allocatedQty = line.allocations.reduce((s, a) => s + a.quantity, 0);
   const remaining = line.requestedQuantity - allocatedQty;
+  const allocatedPct = line.requestedQuantity > 0 ? Math.min(100, (allocatedQty / line.requestedQuantity) * 100) : 0;
   const [supplierId, setSupplierId] = useState('');
   const [quantity, setQuantity] = useState<number>(remaining > 0 ? remaining : line.requestedQuantity);
   const [reason, setReason] = useState('');
   const needsReason = supplierId !== '' && supplierId !== winningSupplierId;
+  const statusTone: ChipTone = line.status === 'AWARDED' ? 'success' : line.status === 'NO_AWARD' ? 'neutral' : 'warning';
+  const statusLabel = line.status === 'AWARDED' ? 'Awarded' : line.status === 'NO_AWARD' ? 'No award' : 'Pending';
 
   return (
     <div className={`award-line-row ${line.status === 'AWARDED' ? 'awarded' : line.status === 'NO_AWARD' ? 'no-award' : ''}`}>
@@ -276,8 +334,25 @@ function AwardLineRow({
           <strong>{line.lineDescription}</strong>
           <span className="settings-row-note"> {line.requestedQuantity} {line.unit}{line.targetUnitPrice != null ? ` · target ${fmt(line.targetUnitPrice)}` : ''}</span>
         </div>
-        {line.allocations.length > 0 && !disabled && <button className="secondary-button" onClick={onClearLine}>Clear line</button>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <StatusChip label={statusLabel} tone={statusTone} />
+          {line.allocations.length > 0 && !disabled && <button className="secondary-button" onClick={onClearLine}>Clear line</button>}
+        </div>
       </div>
+
+      {line.status !== 'NO_AWARD' && (
+        <div className="award-progress" aria-label={`Allocated ${allocatedQty} of ${line.requestedQuantity} ${line.unit}`}>
+          <div className="award-progress-track"><div className="award-progress-fill" style={{ width: `${allocatedPct}%` }} /></div>
+          <span className="award-progress-label">Allocated {allocatedQty.toLocaleString()} / {line.requestedQuantity.toLocaleString()} · {allocatedPct.toFixed(0)}%{remaining > 0 ? ` · Remaining ${remaining.toLocaleString()}` : ''}</span>
+        </div>
+      )}
+
+      {line.isManualOverride && (
+        <div className="award-override-banner" role="note">
+          <strong>Manual override</strong> — differs from the lowest-landed-cost recommendation.
+          {line.overrideReason && <span> Reason: {line.overrideReason}</span>}
+        </div>
+      )}
 
       {line.allocations.length > 0 && (
         <ul className="award-allocation-list">
