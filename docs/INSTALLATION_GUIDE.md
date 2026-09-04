@@ -18,8 +18,7 @@ When the app is published to the monday Marketplace:
 2. Search for **Ariavel Sourcing**
 3. Click **Add to account**
 4. Authorise the requested permissions:
-   - `me:read` — identify the current user
-   - `account:read` — account-level context
+   - `me:read` — verify the acting user's monday role (admin/member/guest/view-only) server-side before allowing Award Workspace mutations
    - `boards:read` — read boards for supplier sync
    - `storage` — persist supplier and event data
 5. Click **Install**
@@ -62,10 +61,11 @@ Click **Get started** or **Skip** to proceed to the main interface.
 
 | Permission | Why Required |
 |---|---|
-| `me:read` | Identify buyer user for audit logging |
-| `account:read` | Derive tenant ID for data isolation |
+| `me:read` | Server-side role check (`query { me { kind } }`) gating Award Workspace mutations — see docs/PROJECT_STATE.md Security Architecture |
 | `boards:read` | Discover boards for supplier import |
 | `storage` | Store supplier and event data persistently |
+
+Tenant ID is derived exclusively from the verified `sessionToken` JWT (`account_id` claim), never from an `account:read` API call — that scope is not requested. See docs/PROJECT_STATE.md's OAuth Scopes section for the authoritative, code-audited scope list.
 
 ---
 

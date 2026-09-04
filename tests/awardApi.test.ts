@@ -238,6 +238,37 @@ describe('Award API', () => {
   });
 
   describe('server-side award edit capability enforcement', () => {
+    it('allows an admin to mutate awards', async () => {
+      const app = buildApp(() => Promise.resolve({ isAdmin: true, isGuest: false, isViewOnly: false }));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(201);
+    });
+
+    it('allows a regular member (not admin, not guest, not view-only) to mutate awards per documented policy', async () => {
+      const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: false, isViewOnly: false }));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(201);
+    });
+
+    it('ignores a client-supplied capability claim — the server role lookup is the only authority', async () => {
+      // A malicious/buggy client could send any header/body field claiming edit
+      // rights; the middleware never reads req.body or req.headers for this —
+      // only the independently-verified roleProvider result decides.
+      const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: true, isViewOnly: false }));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .set('X-Claimed-Capability', 'canEditAriavelSuppliers') // must be ignored
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES, canEdit: true, isAdmin: true });
+      expect(res.status).toBe(403);
+    });
+
     it('blocks scenario creation for a monday guest', async () => {
       const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: true, isViewOnly: false }));
       const res = await request(app)

@@ -10,6 +10,23 @@
  * member, rather than trusting the client-supplied `RuntimeCapabilities`
  * used for UI gating (src/backend/entitlement — client-derived, never a
  * substitute for server-side enforcement on mutation routes).
+ *
+ * Scope: the `me` query requires the `me:read` OAuth scope specifically
+ * (distinct from `users:read`, which gates the `users` query) — confirmed
+ * against developer.monday.com/api-reference/reference/me. `boards:read`
+ * (this app's only other scope) does not cover it.
+ *
+ * Fields: `is_admin`/`is_guest`/`is_view_only` are deprecated as of API
+ * version 2026-07 in favor of a single `kind` field (ADMIN/MEMBER/GUEST/
+ * VIEW_ONLY/AGENT_MEMBER/PORTAL), scheduled for removal in 2026-10
+ * (developer.monday.com/api-reference/docs/migrating-user-entity-to-2026-10).
+ * This app pins MONDAY_API_VERSION '2026-07' (src/backend/runtime/
+ * mondayRuntime.ts) — squarely inside the deprecated-but-not-yet-removed
+ * window, so both `kind` and the legacy booleans are queried together;
+ * `kind` is authoritative when present, the booleans are the fallback for
+ * any account still served an older response shape. Revisit this file
+ * before pinning API version 2026-10 or later — the boolean fields will be
+ * removed and this fallback becomes dead code.
  */
 
 export interface MondayUserRole {
@@ -20,10 +37,36 @@ export interface MondayUserRole {
 
 export type MondayRoleProvider = (shortLivedToken: string) => Promise<MondayUserRole>;
 
-const ME_QUERY = `query { me { is_admin is_guest is_view_only } }`;
+const ME_QUERY = `query { me { kind is_admin is_guest is_view_only } }`;
 const CACHE_TTL_MS = 60_000;
 
 interface CacheEntry { role: MondayUserRole; expiresAt: number }
+
+interface RawMe {
+  kind?: string | null;
+  is_admin?: boolean;
+  is_guest?: boolean;
+  is_view_only?: boolean;
+}
+
+function roleFromRawMe(me: RawMe): MondayUserRole {
+  const kind = me.kind?.toUpperCase();
+  if (kind) {
+    // AGENT_MEMBER and PORTAL are non-human/portal-scoped kinds introduced
+    // alongside `kind` — treat them as view-only rather than silently
+    // granting edit capability to a kind this code doesn't recognize yet.
+    return {
+      isAdmin: kind === 'ADMIN',
+      isGuest: kind === 'GUEST',
+      isViewOnly: kind === 'VIEW_ONLY' || kind === 'AGENT_MEMBER' || kind === 'PORTAL',
+    };
+  }
+  return {
+    isAdmin: Boolean(me.is_admin),
+    isGuest: Boolean(me.is_guest),
+    isViewOnly: Boolean(me.is_view_only),
+  };
+}
 
 export function createMondayRoleProvider(
   apiUrl = 'https://api.monday.com/v2',
@@ -49,20 +92,13 @@ export function createMondayRoleProvider(
       throw new Error(`monday role lookup failed with status ${response.status}`);
     }
 
-    const json = (await response.json()) as {
-      data?: { me?: { is_admin?: boolean; is_guest?: boolean; is_view_only?: boolean } };
-      errors?: unknown;
-    };
+    const json = (await response.json()) as { data?: { me?: RawMe }; errors?: unknown };
     const me = json?.data?.me;
     if (!me) {
       throw new Error('monday role lookup returned no user data');
     }
 
-    const role: MondayUserRole = {
-      isAdmin: Boolean(me.is_admin),
-      isGuest: Boolean(me.is_guest),
-      isViewOnly: Boolean(me.is_view_only),
-    };
+    const role = roleFromRawMe(me);
     cache.set(shortLivedToken, { role, expiresAt: now + cacheTtlMs });
     return role;
   };
