@@ -518,10 +518,12 @@ function BillingSection() {
           'Supplier Invitations',
           'Supplier Portal',
           'Bid Comparison & FX Normalization',
+          'Commercial Evaluation',
           'Award Workspace',
-          'Document Attachments',
-          'Excel Quote Import',
           'Audit Log',
+          // Document Attachments and Excel Quote Import have backend support
+          // but no reachable buyer/supplier UI yet — not advertised until
+          // there's an actual screen for them.
         ].map(f => (
           <div key={f} className="settings-feature-row">
             <span className="settings-feature-check" aria-hidden="true">✓</span>
