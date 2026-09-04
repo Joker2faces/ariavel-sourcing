@@ -522,7 +522,7 @@ function BillingSection() {
           'Award Workspace',
           'Audit Log',
           'Document Attachments',
-          'Excel Quote Import',
+          'CSV Quote Import',
         ].map(f => (
           <div key={f} className="settings-feature-row">
             <span className="settings-feature-check" aria-hidden="true">✓</span>

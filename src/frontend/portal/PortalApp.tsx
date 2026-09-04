@@ -241,7 +241,8 @@ export function PortalApp({ token, client }: Props) {
           </div>
         </div>
         <p className="portal-hint">
-          Fill in every line below, or download the CSV template, complete it in Excel, and import it here. Importing never
+          Fill in every line below, or download the CSV template, fill it in with Excel or any spreadsheet app, and import
+          the CSV file here. Importing never
           submits your quote automatically — review every line before saving your draft.
         </p>
         {importResult && (

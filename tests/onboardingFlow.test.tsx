@@ -62,6 +62,25 @@ describe('OnboardingFlow — real configuration wizard', () => {
     expect(screen.getByText('Next')).toBeDisabled();
   });
 
+  it('offers a deliberate deferral to the real Supplier Source setup from the Review step, without duplicating its mapping UI', async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    render(<OnboardingFlow apiClient={mockApiClient() as BuyerApiClient} onComplete={onComplete} onSkip={vi.fn()} />);
+
+    await user.click(screen.getByText('Next')); // -> Organization
+    await user.type(screen.getByLabelText('Company name*'), 'Acme');
+    await user.click(screen.getByText('Next')); // -> Sourcing
+    await user.click(screen.getByText('Next')); // -> Weights
+    await user.click(screen.getByText('Next')); // -> Review
+
+    // No board-mapping controls here — that logic lives only in SupplierSourceDrawer.
+    expect(screen.queryByText('Choose a board')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/monday column/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Finish and set up supplier source'));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(expect.any(Object), true));
+  });
+
   it('calls onSkip without persisting any collected settings', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();

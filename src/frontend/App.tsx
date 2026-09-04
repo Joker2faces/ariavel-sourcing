@@ -160,9 +160,10 @@ export default function App({ supplierService: injSupplier, eventService: injEve
     return () => { cancelled = true; };
   }, [services?.apiClient]);
 
-  const dismissOnboarding = (config?: TenantSettingsInput) => {
+  const dismissOnboarding = (config?: TenantSettingsInput, goToSupplierSource?: boolean) => {
     try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
     setShowOnboarding(false);
+    if (goToSupplierSource) setActiveNav('Suppliers');
     if (services?.apiClient) {
       services.apiClient.getSettings()
         .then(s => services.apiClient!.updateSettings({ ...config, onboardingCompletedAt: new Date().toISOString() }, s.version))

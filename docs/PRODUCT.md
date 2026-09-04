@@ -2,13 +2,13 @@
 
 ## Goal
 
-Ariavel Sourcing helps procurement teams compare supplier quotations correctly without rebuilding another Excel spreadsheet. As of this Release Candidate, the full loop is built: RFQs, secure supplier invitations and a public portal, quote submission, normalized bid matrices with landed cost, award scenarios (including split awards), and document/Excel exchange with suppliers — all described milestone by milestone below.
+Ariavel Sourcing helps procurement teams compare supplier quotations correctly without rebuilding another Excel spreadsheet. As of this Release Candidate, the full loop is built: RFQs, secure supplier invitations and a public portal, quote submission, normalized bid matrices with landed cost, award scenarios (including split awards), and document/CSV quote exchange with suppliers — all described milestone by milestone below.
 
 ## Milestone 1 boundary
 
 This release delivers the Sourcing Hub as a monday Custom Object: summary metrics, recent sourcing events, status/deadline/response visibility, navigation, responsive behavior and a create-event entry point. It intentionally uses a mock data provider.
 
-Not included yet: persistence, supplier invitations, quote entry, PDF/Excel import, real bid normalization, awards write-back, split awards, automation or live promotion.
+Not included yet: true `.xlsx` binary import (quote import accepts CSV only — a real Excel workbook must be exported/saved as CSV first), PDF quote extraction, automation, or live promotion. Persistence, supplier invitations, quote entry, real bid normalization, awards write-back, and split awards have since shipped — see docs/PROJECT_STATE.md for current status, not this line.
 
 ## Milestone 2 — Supplier Master
 

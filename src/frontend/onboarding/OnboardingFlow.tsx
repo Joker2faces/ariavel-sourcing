@@ -7,8 +7,16 @@ type Step = 0 | 1 | 2 | 3 | 4;
 
 interface Props {
   apiClient?: BuyerApiClient | null;
-  /** Receives everything the buyer configured, to be persisted alongside onboardingCompletedAt. */
-  onComplete: (config: TenantSettingsInput) => void;
+  /**
+   * Receives everything the buyer configured, to be persisted alongside
+   * onboardingCompletedAt. `goToSupplierSource` is set when the buyer chose
+   * "Set up supplier source" on the Review step — the caller is expected to
+   * navigate to the Suppliers page afterward, where the existing "Configure
+   * supplier source" flow (SupplierSourceDrawer, Ariavel-managed vs. an
+   * existing monday board) lives. That mapping UI is deliberately NOT
+   * duplicated here — see the Review step for why.
+   */
+  onComplete: (config: TenantSettingsInput, goToSupplierSource?: boolean) => void;
   onSkip: () => void;
 }
 
@@ -78,6 +86,11 @@ export function OnboardingFlow({ apiClient, onComplete, onSkip }: Props) {
     setCompanyError('');
     if (isLast) { onComplete(buildConfig()); return; }
     setStep(s => (Math.min(s + 1, 4) as Step));
+  }
+
+  function finishAndConfigureSupplierSource() {
+    setCompanyError('');
+    onComplete(buildConfig(), true);
   }
 
   function back() {
@@ -202,6 +215,16 @@ export function OnboardingFlow({ apiClient, onComplete, onSkip }: Props) {
                 <li>Evaluation weights: <strong>{landedCostWeight}/{leadTimeWeight}/{completenessWeight}</strong> (cost/lead time/completeness)</li>
               </ul>
               <p className="onboarding-detail">You can change any of this later from Settings.</p>
+              <div className="onboarding-supplier-source-note">
+                <p className="onboarding-detail">
+                  One thing this wizard deliberately doesn&apos;t set up: where your suppliers come from (a new
+                  Ariavel-managed list, or an existing monday board with column mapping). That has its own guided
+                  flow with live board/column validation — reusing it here would mean two places to keep in sync.
+                </p>
+                <button type="button" className="secondary-button" onClick={finishAndConfigureSupplierSource}>
+                  Finish and set up supplier source
+                </button>
+              </div>
             </div>
           )}
         </div>
