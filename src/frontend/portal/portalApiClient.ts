@@ -1,11 +1,16 @@
-import type { InvitationPublicDTO } from '../../server/types/invitation';
+import type { InvitationPublicDTO, RfqLineSnapshot } from '../../server/types/invitation';
 import type { QuoteInput, QuotePublicDTO } from '../../server/types/quote';
+import type { ExcelImportResult } from '../../shared/types/document';
 
 export interface PortalApiClient {
   getInvitation(token: string): Promise<InvitationPublicDTO>;
   getQuote(token: string): Promise<QuotePublicDTO | null>;
   saveDraft(token: string, input: QuoteInput): Promise<QuotePublicDTO>;
   submit(token: string): Promise<Pick<QuotePublicDTO, 'status' | 'submittedAt'>>;
+  /** Same-origin URL the browser can navigate/download directly — no fetch wrapper needed for a GET file download. */
+  quoteTemplateUrl(token: string, rfqReference: string, lines: RfqLineSnapshot[]): string;
+  /** Dry-run parse of a supplier-uploaded quote file; never auto-submits. */
+  importQuote(token: string, csvContent: string, validLineIds: string[], rfqReference?: string): Promise<ExcelImportResult>;
 }
 
 export class PortalApiError extends Error {
@@ -52,6 +57,20 @@ export function createPortalApiClient(baseUrl = ''): PortalApiClient {
         method: 'POST',
       });
       return data.quote;
+    },
+    quoteTemplateUrl(token, rfqReference, lines) {
+      // The server's template generator expects SourcingLine-shaped objects
+      // (id, not lineId) — map the invitation's RfqLineSnapshot before serializing.
+      const eventLines = lines.map(l => ({ id: l.lineId, description: l.description, quantity: l.quantity, unit: l.unit }));
+      const params = new URLSearchParams({ rfqReference, eventLines: JSON.stringify(eventLines) });
+      return `${baseUrl}/api/portal/invitations/${encodeURIComponent(token)}/quote-template?${params.toString()}`;
+    },
+    async importQuote(token, csvContent, validLineIds, rfqReference) {
+      const data = await req<{ result: ExcelImportResult }>(`/api/portal/invitations/${encodeURIComponent(token)}/quote-import`, {
+        method: 'POST',
+        body: JSON.stringify({ csvContent, validLineIds, rfqReference }),
+      });
+      return data.result;
     },
   };
 }

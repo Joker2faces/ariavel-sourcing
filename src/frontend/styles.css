@@ -738,7 +738,17 @@ th.sticky-col { z-index: 3; background: var(--color-surface-secondary); }
 .portal-message h1, .portal-submitted h2 { margin: 8px 0 0; color: var(--color-text-primary); }
 .portal-message p, .portal-submitted p { margin: 0; color: var(--color-text-secondary); line-height: 1.5; }
 .portal-submitted-mark { color: #168456; background: #e8f6ee; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.portal-hint { font-size: 13px; }
+.portal-hint { font-size: 13px; color: var(--color-text-secondary); }
+.portal-import-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+.portal-import-row h2 { margin: 0; }
+.portal-import-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.portal-import-actions a.secondary-button { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.portal-import-actions button.secondary-button { display: inline-flex; align-items: center; gap: 6px; }
+.portal-import-result { border-radius: 8px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13.5px; }
+.portal-import-result ul { margin: 8px 0 0; padding-left: 18px; }
+.portal-import-success { background: var(--color-success-bg); color: var(--color-success); }
+.portal-import-error { background: var(--color-error-bg); color: var(--color-error); }
+.portal-import-warnings { color: var(--color-warning); }
 
 @media (max-width: 700px) {
   .portal-header { padding: 16px 20px; }

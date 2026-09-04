@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { createPortalApiClient, PortalApiError, type PortalApiClient } from './portalApiClient';
 import type { InvitationPublicDTO } from '../../server/types/invitation';
 import type { QuoteInput, QuoteLine, QuotePublicDTO } from '../../server/types/quote';
+import type { ExcelImportResult } from '../../shared/types/document';
 import { Icon } from '../components/Icon';
 import { Modal } from '../components/Modal';
 
@@ -38,6 +39,9 @@ export function PortalApp({ token, client }: Props) {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [submittedAt, setSubmittedAt] = useState<string | undefined>(undefined);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ExcelImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +96,45 @@ export function PortalApp({ token, client }: Props) {
       setSaveError('Could not save your draft. Check your connection and try again.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
+      reader.readAsText(file);
+    });
+  }
+
+  async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // allow re-selecting the same file after a fix
+    if (!file || !invitation) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const csvContent = await readFileAsText(file);
+      const validLineIds = invitation.lines.map(l => l.lineId);
+      const result = await api.importQuote(token, csvContent, validLineIds, invitation.eventReference);
+      setImportResult(result);
+      if (result.status === 'VALID') {
+        setLines(prev => {
+          const next = [...prev];
+          for (const row of result.rows) {
+            const idx = next.findIndex(l => l.lineId === row.lineId);
+            const patch = { unitPrice: row.unitPrice, currency: row.currency, leadTimeDays: row.leadTimeDays, moq: row.moq, notes: row.notes };
+            if (idx >= 0) next[idx] = { ...next[idx], ...patch };
+            else next.push({ lineId: row.lineId, lineDescription: invitation.lines.find(l => l.lineId === row.lineId)?.description ?? '', ...patch });
+          }
+          return next;
+        });
+      }
+    } catch {
+      setImportResult({ status: 'ERROR', rows: [], errors: [{ row: 0, field: 'file', message: 'Could not read this file. Make sure it is the CSV template downloaded from this page.' }], warnings: [] });
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -174,7 +217,48 @@ export function PortalApp({ token, client }: Props) {
       <PortalHeader invitation={invitation} />
 
       <div className="portal-card">
-        <h2>Request for quote — {lines.length} line{lines.length === 1 ? '' : 's'}</h2>
+        <div className="portal-import-row">
+          <h2>Request for quote — {lines.length} line{lines.length === 1 ? '' : 's'}</h2>
+          <div className="portal-import-actions">
+            <a
+              className="secondary-button"
+              href={api.quoteTemplateUrl(token, invitation.eventReference, invitation.lines)}
+              download={`${invitation.eventReference}-quote-template.csv`}
+            >
+              <Icon name="download" size={16} /> Download template
+            </a>
+            <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+              <Icon name="upload" size={16} /> {importing ? 'Importing…' : 'Import from file'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="visually-hidden"
+              aria-label="Import quote from CSV file"
+              onChange={event => void handleImportFile(event)}
+            />
+          </div>
+        </div>
+        <p className="portal-hint">
+          Fill in every line below, or download the CSV template, complete it in Excel, and import it here. Importing never
+          submits your quote automatically — review every line before saving your draft.
+        </p>
+        {importResult && (
+          <div className={`portal-import-result ${importResult.status === 'ERROR' ? 'portal-import-error' : 'portal-import-success'}`} role="alert">
+            {importResult.status === 'VALID' ? (
+              <p>Imported {importResult.rows.length} line{importResult.rows.length === 1 ? '' : 's'} from your file. Review the values below, then save your draft.</p>
+            ) : (
+              <p>Your file could not be imported. Fix the issues below and try again — nothing was changed.</p>
+            )}
+            {importResult.errors.length > 0 && (
+              <ul>{importResult.errors.map((e, i) => <li key={`err-${i}`}>{e.field !== 'file' ? `Row ${e.row}: ` : ''}{e.message}</li>)}</ul>
+            )}
+            {importResult.warnings.length > 0 && (
+              <ul className="portal-import-warnings">{importResult.warnings.map((w, i) => <li key={`warn-${i}`}>{w.row ? `Row ${w.row}: ` : ''}{w.message}</li>)}</ul>
+            )}
+          </div>
+        )}
         <div className="portal-table-wrap">
           <table className="portal-table">
             <thead>

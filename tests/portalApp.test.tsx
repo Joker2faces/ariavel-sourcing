@@ -27,6 +27,8 @@ function mockClient(overrides: Partial<PortalApiClient> = {}): PortalApiClient {
     getQuote: vi.fn().mockResolvedValue(null),
     saveDraft: vi.fn().mockResolvedValue({ id: 'q1', status: 'DRAFT', lines: [] }),
     submit: vi.fn().mockResolvedValue({ status: 'SUBMITTED', submittedAt: '2026-02-01T10:00:00Z' }),
+    quoteTemplateUrl: vi.fn().mockReturnValue('/api/portal/invitations/tok/quote-template'),
+    importQuote: vi.fn().mockResolvedValue({ status: 'VALID', rows: [], errors: [], warnings: [] }),
     ...overrides,
   };
 }
@@ -99,6 +101,59 @@ describe('PortalApp — public supplier portal, no monday context', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByText('Submit this quote?')).not.toBeInTheDocument();
     expect(client.submit).not.toHaveBeenCalled();
+  });
+
+  it('offers a template download link built from the invitation lines', async () => {
+    const client = mockClient();
+    render(<PortalApp token="tok" client={client} />);
+    await screen.findByText('Corrugated boxes');
+    expect(client.quoteTemplateUrl).toHaveBeenCalledWith('tok', 'RFQ-42', expect.arrayContaining([expect.objectContaining({ lineId: 'l1' })]));
+    expect(screen.getByText('Download template').closest('a')).toHaveAttribute('href', '/api/portal/invitations/tok/quote-template');
+  });
+
+  it('imports a CSV file and fills in the matching line, without auto-submitting', async () => {
+    const user = userEvent.setup();
+    const client = mockClient({
+      importQuote: vi.fn().mockResolvedValue({
+        status: 'VALID',
+        rows: [{ lineId: 'l1', unitPrice: 4.5, currency: 'USD', leadTimeDays: 10, moq: 100 }],
+        errors: [],
+        warnings: [],
+      }),
+    });
+    render(<PortalApp token="tok" client={client} />);
+    await screen.findByText('Corrugated boxes');
+
+    const file = new File(['line_id,unit_price\nl1,4.5'], 'quote.csv', { type: 'text/csv' });
+    const input = screen.getByLabelText('Import quote from CSV file');
+    await user.upload(input, file);
+
+    await waitFor(() => expect(client.importQuote).toHaveBeenCalledWith('tok', expect.stringContaining('l1'), ['l1'], 'RFQ-42'));
+    expect(await screen.findByText(/Imported 1 line/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Unit price for Corrugated boxes')).toHaveValue(4.5);
+    expect(client.saveDraft).not.toHaveBeenCalled();
+    expect(client.submit).not.toHaveBeenCalled();
+  });
+
+  it('shows import errors without touching existing line values', async () => {
+    const user = userEvent.setup();
+    const client = mockClient({
+      importQuote: vi.fn().mockResolvedValue({
+        status: 'ERROR',
+        rows: [],
+        errors: [{ row: 2, field: 'line_id', message: 'line_id "bogus" does not exist in this RFQ' }],
+        warnings: [],
+      }),
+    });
+    render(<PortalApp token="tok" client={client} />);
+    await screen.findByText('Corrugated boxes');
+
+    const file = new File(['line_id,unit_price\nbogus,4.5'], 'quote.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('Import quote from CSV file'), file);
+
+    expect(await screen.findByText(/could not be imported/)).toBeInTheDocument();
+    expect(screen.getByText(/does not exist in this RFQ/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Unit price for Corrugated boxes')).toHaveValue(null);
   });
 
   it('shows the already-submitted state directly for a SUBMITTED invitation, without loading a quote form', async () => {
