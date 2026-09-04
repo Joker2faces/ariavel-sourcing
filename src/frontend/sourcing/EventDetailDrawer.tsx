@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SourcingEvent, SourcingEventStatus } from '../../shared/types/domain';
 import type { SourcingEventService } from '../../backend/services/sourcingEventService';
 import type { RuntimeCapabilities } from '../../backend/runtime/runtimeCapabilities';
 import type { BuyerApiClient } from '../api/buyerApiClient';
+import type { SupplierInvitation } from '../../server/types/invitation';
 import { formatDeadlineDisplay, isOverdue, isClosingSoon } from '../../shared/utils/deadline';
 import { InvitationsPanel } from './InvitationsPanel';
 import { ComparisonPanel } from './ComparisonPanel';
 import { ActivityPanel } from './ActivityPanel';
 import { EventStatusChip } from './eventStatus';
+import { KpiCard } from '../components/KpiCard';
 
 export function EventDetailDrawer({
   event,
@@ -31,6 +33,18 @@ export function EventDetailDrawer({
   const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers' | 'invitations' | 'comparison' | 'activity'>('overview');
   const { valid: readyValid } = service.validateReady(event);
 
+  // Lightweight, header-only read of invitation state — InvitationsPanel owns
+  // the authoritative fetch/poll/mutate lifecycle for its own tab; this is
+  // just enough to show "3 invited, 1 opened, 1 submitted" at a glance
+  // without duplicating that panel's state management up here.
+  const [invitations, setInvitations] = useState<SupplierInvitation[] | null>(null);
+  useEffect(() => {
+    if (!apiClient) { setInvitations(null); return; }
+    let cancelled = false;
+    apiClient.listInvitations(event.id).then(inv => { if (!cancelled) setInvitations(inv); }).catch(() => { if (!cancelled) setInvitations(null); });
+    return () => { cancelled = true; };
+  }, [apiClient, event.id, activeTab]);
+
   const deadlineClass = event.deadline
     ? isOverdue(event.deadline) ? 'deadline-overdue' : isClosingSoon(event.deadline) ? 'deadline-closing' : ''
     : '';
@@ -53,7 +67,13 @@ export function EventDetailDrawer({
               {event.deadline && <span className={`deadline-badge ${deadlineClass}`}>{formatDeadlineDisplay(event.deadline)}</span>}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {onEdit && <button className="secondary-button" onClick={onEdit}>Edit</button>}
+              {onEdit && <button className="secondary-button" onClick={onEdit}>Edit RFQ</button>}
+              {(event.status === 'READY_FOR_INVITATION' || event.status === 'OPEN') && (
+                <button className="primary-button" onClick={() => setActiveTab('invitations')}>Generate invitations</button>
+              )}
+              {(event.status === 'OPEN' || event.status === 'EVALUATING') && (
+                <button className={event.status === 'EVALUATING' ? 'primary-button' : 'secondary-button'} onClick={() => setActiveTab('comparison')}>Open bid matrix</button>
+              )}
               {onStatusChange && event.status === 'DRAFT' && readyValid && (
                 <button className="primary-button" onClick={() => onStatusChange('READY_FOR_INVITATION')}>Mark Ready</button>
               )}
@@ -79,7 +99,7 @@ export function EventDetailDrawer({
                   : tab === 'lines' ? `Lines (${event.lines.length})`
                   : tab === 'suppliers' ? `Suppliers (${event.supplierSelections.length})`
                   : tab === 'invitations' ? 'Invitations'
-                  : tab === 'comparison' ? 'Comparison'
+                  : tab === 'comparison' ? 'Bid Matrix'
                   : 'Activity'}
               </button>
             ))}
@@ -87,6 +107,14 @@ export function EventDetailDrawer({
 
           {activeTab === 'overview' && (
             <div>
+              {invitations && invitations.length > 0 && (
+                <div className="kpi-row kpi-row-4" aria-label="Response progress" style={{ marginBottom: 20 }}>
+                  <KpiCard icon="users" label="Invited" value={invitations.length} tone="neutral" />
+                  <KpiCard icon="check" label="Opened" value={invitations.filter(i => i.status === 'OPENED' || i.status === 'SUBMITTED').length} tone="info" />
+                  <KpiCard icon="trophy" label="Submitted" value={invitations.filter(i => i.status === 'SUBMITTED').length} tone="success" />
+                  <KpiCard icon="clock" label="Remaining" value={invitations.filter(i => i.status === 'CREATED' || i.status === 'OPENED').length} tone="warning" />
+                </div>
+              )}
               <div className="detail-section">
                 <h4>Identity</h4>
                 <dl>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SourcingEvent } from '../../shared/types/domain';
 import type { ComparisonSnapshot, FreightAllocationPolicy } from '../../shared/types/bid';
 import type { BuyerApiClient } from '../api/buyerApiClient';
-import { BidMatrix } from './BidMatrix';
+import { BidMatrix, EvaluationPanel } from './BidMatrix';
 
 interface Props {
   event: SourcingEvent;
@@ -19,6 +19,7 @@ export function ComparisonPanel({ event, apiClient }: Props) {
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState('');
   const [showBuildForm, setShowBuildForm] = useState(false);
+  const [view, setView] = useState<'matrix' | 'evaluation'>('matrix');
 
   const [baseCurrency, setBaseCurrency] = useState(event.currency);
   const [freightPolicy, setFreightPolicy] = useState<FreightAllocationPolicy>('PROPORTIONAL_TO_LINE_VALUE');
@@ -61,6 +62,12 @@ export function ComparisonPanel({ event, apiClient }: Props) {
     }
   }
 
+  async function handleSetTechnicalScore(supplierId: string, score: number, comment?: string) {
+    if (!apiClient || !snapshot) return;
+    const updated = await apiClient.setManualTechnicalScore(snapshot.id, supplierId, score, comment);
+    setSnapshot(updated);
+  }
+
   if (!apiClient) {
     // Only reachable with no monday session (local dev without monday
     // context) — a real deployed build with no context never gets here at
@@ -80,6 +87,12 @@ export function ComparisonPanel({ event, apiClient }: Props) {
       {error && <div className="notice notice-error" role="alert">{error}</div>}
 
       <div className="comparison-toolbar">
+        {snapshot && (
+          <div className="bid-matrix-view-tabs" role="group" aria-label="Comparison view">
+            <button className={`bid-view-tab ${view === 'matrix' ? 'active' : ''}`} aria-pressed={view === 'matrix'} onClick={() => setView('matrix')}>Bid Matrix</button>
+            <button className={`bid-view-tab ${view === 'evaluation' ? 'active' : ''}`} aria-pressed={view === 'evaluation'} onClick={() => setView('evaluation')}>Evaluation</button>
+          </div>
+        )}
         {history.length > 0 && <span className="settings-row-note">{history.length} snapshot{history.length !== 1 ? 's' : ''} saved</span>}
         <button className="primary-button" onClick={() => setShowBuildForm(v => !v)}>
           {snapshot ? 'Rebuild comparison' : 'Build comparison'}
@@ -131,8 +144,11 @@ export function ComparisonPanel({ event, apiClient }: Props) {
         </div>
       )}
 
-      {snapshot && (
+      {snapshot && view === 'matrix' && (
         <BidMatrix snapshot={snapshot} eventLines={event.lines} baseCurrency={snapshot.baseCurrency} />
+      )}
+      {snapshot && view === 'evaluation' && (
+        <EvaluationPanel snapshot={snapshot} onSetTechnicalScore={handleSetTechnicalScore} />
       )}
     </div>
   );

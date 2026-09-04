@@ -3,6 +3,7 @@ import type { SourcingEvent, SourcingSupplierSelection } from '../../shared/type
 import type { SupplierInvitation } from '../../server/types/invitation';
 import type { SupplierQuote } from '../../server/types/quote';
 import type { BuyerApiClient } from '../api/buyerApiClient';
+import { StatusChip, type ChipTone } from '../components/StatusChip';
 
 const POLL_INTERVAL_MS = 20_000;
 
@@ -16,19 +17,20 @@ function invitationMessage(event: SourcingEvent, supplierName: string, token: st
 }
 
 const STATUS_LABEL: Record<SupplierInvitation['status'], string> = {
-  CREATED: 'Invited',
+  CREATED: 'Invitation generated',
   OPENED: 'Opened',
   SUBMITTED: 'Submitted',
   EXPIRED: 'Expired',
   REVOKED: 'Revoked',
 };
 
-function statusClass(s: SupplierInvitation['status']) {
-  if (s === 'SUBMITTED') return 'inv-status-submitted';
-  if (s === 'OPENED') return 'inv-status-opened';
-  if (s === 'CREATED') return 'inv-status-created';
-  return 'inv-status-closed';
-}
+const STATUS_TONE: Record<SupplierInvitation['status'], ChipTone> = {
+  CREATED: 'info',
+  OPENED: 'warning',
+  SUBMITTED: 'success',
+  EXPIRED: 'neutral',
+  REVOKED: 'danger',
+};
 
 interface Props {
   event: SourcingEvent;
@@ -233,9 +235,10 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                 <div className="inv-row-info">
                   <strong>{inv.supplierNameSnapshot}</strong>
                   <small style={{ color: '#667286', marginLeft: 6 }}>{inv.supplierEmailSnapshot}</small>
-                  <span className={`inv-status ${statusClass(inv.status)}`}>{STATUS_LABEL[inv.status]}</span>
+                  <StatusChip label={STATUS_LABEL[inv.status]} tone={STATUS_TONE[inv.status]} />
                   {quote && <span className="inv-quote-badge">Quote: {quote.status === 'SUBMITTED' ? '✓ Submitted' : '⏳ Draft'}</span>}
-                  {inv.expiresAt && <small className="settings-row-note" style={{ marginLeft: 6 }}>Expires {new Date(inv.expiresAt).toLocaleDateString()}</small>}
+                  {inv.openedAt && <small className="settings-row-note">First opened {new Date(inv.openedAt).toLocaleDateString()}</small>}
+                  {inv.expiresAt && <small className="settings-row-note">Expires {new Date(inv.expiresAt).toLocaleDateString()}</small>}
                 </div>
                 <div className="inv-row-actions">
                   {inv.status !== 'REVOKED' && inv.status !== 'SUBMITTED' && inv.status !== 'EXPIRED' && (
@@ -253,7 +256,7 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                     </>
                   )}
                 </div>
-                {canDeliver && (
+                {canDeliver ? (
                   <div className="inv-delivery-banner">
                     <span className="settings-badge badge-neutral">Link generated — not automatically sent</span>
                     <button className="secondary-button small" onClick={() => copyLink(inv.id, token)}>
@@ -263,6 +266,14 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                       {copiedMessageId === inv.id ? 'Copied!' : 'Copy invitation message'}
                     </button>
                     <a className="secondary-button small" href={mailtoHref(inv, token)}>Open email draft</a>
+                  </div>
+                ) : (inv.status === 'CREATED' || inv.status === 'OPENED') && (
+                  // The raw token is only ever known right after create/regenerate — it is
+                  // hashed at rest and never re-shown for security. After a reload there is
+                  // no way to recover the original link, so say so instead of silently
+                  // showing nothing.
+                  <div className="inv-delivery-banner">
+                    <span className="settings-row-note">The invitation link was already generated for this supplier and isn't stored in plain text. Use "New link" to get a fresh copyable link (this invalidates the previous one).</span>
                   </div>
                 )}
               </li>

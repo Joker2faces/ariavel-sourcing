@@ -73,4 +73,32 @@ describe('ComparisonPanel', () => {
     render(<ComparisonPanel event={event} apiClient={null} serverAvailable={false} />);
     expect(screen.getByText('Sign in through monday to continue')).toBeInTheDocument();
   });
+
+  it('switches to the Evaluation view and lets a buyer set a technical score', async () => {
+    const user = userEvent.setup();
+    const snapshot: ComparisonSnapshot = {
+      ...makeSnapshot(),
+      evaluationCriteria: [{ key: 'LANDED_COST', label: 'Landed cost', weight: 60 }, { key: 'LEAD_TIME', label: 'Lead time', weight: 40 }],
+      supplierScores: [{ supplierId: 'sup-1', totalScore: 82, criteria: [
+        { key: 'LANDED_COST', rawValue: 100, normalizedScore: 90, weightedContribution: 54 },
+        { key: 'LEAD_TIME', rawValue: 10, normalizedScore: 70, weightedContribution: 28 },
+      ] }],
+      normalizedQuotes: [{ supplierId: 'sup-1', supplierName: 'Acme', status: 'SUBMITTED', quoteCurrency: 'EUR', lines: [], totalBidLines: 0 } as unknown as ComparisonSnapshot['normalizedQuotes'][number]],
+    };
+    const client = mockClient({
+      getLatestComparison: vi.fn().mockResolvedValue(snapshot),
+      setManualTechnicalScore: vi.fn().mockResolvedValue({ ...snapshot, supplierScores: [{ ...snapshot.supplierScores[0], manualTechnicalScore: 88 }] }),
+    });
+    render(<ComparisonPanel event={event} apiClient={client} serverAvailable={true} />);
+
+    await user.click(await screen.findByText('Evaluation'));
+    expect(document.querySelector('.evaluation-panel')).toBeTruthy();
+    expect(screen.getByText('Acme')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Set technical score for Acme/i }));
+    await user.type(screen.getByLabelText('Technical score'), '88');
+    await user.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(client.setManualTechnicalScore).toHaveBeenCalledWith('snap-1', 'sup-1', 88, undefined));
+  });
 });
