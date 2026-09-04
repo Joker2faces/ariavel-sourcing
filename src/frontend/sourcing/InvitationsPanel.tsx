@@ -236,10 +236,10 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
                   <strong>{inv.supplierNameSnapshot}</strong>
                   <small style={{ color: '#667286', marginLeft: 6 }}>{inv.supplierEmailSnapshot}</small>
                   <StatusChip label={STATUS_LABEL[inv.status]} tone={STATUS_TONE[inv.status]} />
-                  {quote && <span className="inv-quote-badge">Quote: {quote.status === 'SUBMITTED' ? '✓ Submitted' : '⏳ Draft'}</span>}
                   {inv.openedAt && <small className="settings-row-note">First opened {new Date(inv.openedAt).toLocaleDateString()}</small>}
                   {inv.expiresAt && <small className="settings-row-note">Expires {new Date(inv.expiresAt).toLocaleDateString()}</small>}
                 </div>
+                {quote && <QuoteSummaryBadge quote={quote} lineCount={event.lines.length} />}
                 <div className="inv-row-actions">
                   {inv.status !== 'REVOKED' && inv.status !== 'SUBMITTED' && inv.status !== 'EXPIRED' && (
                     <>
@@ -281,6 +281,29 @@ export function InvitationsPanel({ event, apiClient, serverAvailable }: Props) {
           })}
         </ul>
       </div>
+    </div>
+  );
+}
+
+// A compact quote-inbox summary inline with each invitation, rather than a
+// separate Quotes tab duplicating the same per-supplier list — coverage,
+// currency and commercial completeness at a glance without leaving this tab.
+function QuoteSummaryBadge({ quote, lineCount }: { quote: SupplierQuote; lineCount: number }) {
+  const quotedLines = quote.lines.filter(l => l.unitPrice != null);
+  const noBidCount = quote.lines.length - quotedLines.length;
+  const currencies = [...new Set(quotedLines.map(l => l.currency).filter((c): c is string => Boolean(c)))];
+  const hasCommercialTerms = Boolean(quote.commercialTerms && quote.paymentTerms);
+
+  return (
+    <div className="inv-quote-summary">
+      <StatusChip label={quote.status === 'SUBMITTED' ? 'Quote submitted' : 'Quote draft'} tone={quote.status === 'SUBMITTED' ? 'success' : 'neutral'} />
+      <span className="settings-row-note">
+        {quotedLines.length}/{lineCount} lines quoted
+        {noBidCount > 0 ? ` · ${noBidCount} no-bid` : ''}
+        {currencies.length > 0 ? ` · ${currencies.join(', ')}` : ''}
+        {!hasCommercialTerms ? ' · terms incomplete' : ''}
+        {quote.submittedAt ? ` · submitted ${new Date(quote.submittedAt).toLocaleDateString()}` : ''}
+      </span>
     </div>
   );
 }

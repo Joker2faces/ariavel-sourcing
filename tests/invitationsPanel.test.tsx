@@ -7,6 +7,7 @@ import { InvitationsPanel } from '../src/frontend/sourcing/InvitationsPanel';
 import type { BuyerApiClient } from '../src/frontend/api/buyerApiClient';
 import type { SourcingEvent } from '../src/shared/types/domain';
 import type { SupplierInvitation } from '../src/server/types/invitation';
+import type { SupplierQuote } from '../src/server/types/quote';
 
 afterEach(cleanup);
 
@@ -16,11 +17,26 @@ if (!navigator.clipboard) {
 
 const event: SourcingEvent = {
   id: 'ev-1', tenantId: 't1', reference: 'RFQ-1', title: 'Test RFQ', status: 'OPEN', currency: 'EUR',
-  ownerUserId: 'u1', lines: [], supplierSelections: [
+  ownerUserId: 'u1', lines: [
+    { id: 'l1', description: 'Widget', quantity: 100, unit: 'pcs' },
+    { id: 'l2', description: 'Gadget', quantity: 50, unit: 'pcs' },
+  ], supplierSelections: [
     { supplierId: 'sup-1', source: 'ARIAVEL', supplierNameSnapshot: 'Acme', emailSnapshot: 'acme@example.com', selectedAt: '2026-01-01T00:00:00Z' },
   ],
   createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', createdByUserId: 'u1', updatedByUserId: 'u1',
 };
+
+function makeQuote(overrides: Partial<SupplierQuote> = {}): SupplierQuote {
+  return {
+    id: 'q-1', tenantId: 't1', invitationId: 'inv-1', eventId: 'ev-1', supplierId: 'sup-1', supplierNameSnapshot: 'Acme',
+    status: 'SUBMITTED', lines: [
+      { lineId: 'l1', lineDescription: 'Widget', unitPrice: 9.5, currency: 'EUR' },
+      { lineId: 'l2', lineDescription: 'Gadget' },
+    ],
+    version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z', submittedAt: '2026-01-02T00:00:00Z',
+    ...overrides,
+  };
+}
 
 function makeInvitation(overrides: Partial<SupplierInvitation> = {}): SupplierInvitation {
   return {
@@ -90,5 +106,19 @@ describe('InvitationsPanel', () => {
   it('shows the invitation expiry date', async () => {
     render(<InvitationsPanel event={event} apiClient={mockClient({ listInvitations: vi.fn().mockResolvedValue([makeInvitation()]) })} serverAvailable={true} />);
     expect(await screen.findByText(/Expires/)).toBeInTheDocument();
+  });
+
+  it('shows a quote-inbox summary (coverage, no-bid, currency, terms, submitted date) inline with the invitation', async () => {
+    const client = mockClient({
+      listInvitations: vi.fn().mockResolvedValue([makeInvitation({ status: 'SUBMITTED' })]),
+      listQuotes: vi.fn().mockResolvedValue([makeQuote()]),
+    });
+    render(<InvitationsPanel event={event} apiClient={client} serverAvailable={true} />);
+    expect(await screen.findByText('Quote submitted')).toBeInTheDocument();
+    expect(screen.getByText(/1\/2 lines quoted/)).toBeInTheDocument();
+    expect(screen.getByText(/1 no-bid/)).toBeInTheDocument();
+    expect(screen.getByText(/EUR/)).toBeInTheDocument();
+    expect(screen.getByText(/terms incomplete/)).toBeInTheDocument();
+    expect(screen.getByText(/submitted \d/)).toBeInTheDocument();
   });
 });

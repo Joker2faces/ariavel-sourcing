@@ -374,7 +374,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .inv-pending-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .inv-pending-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e0e5eb; border-radius: 6px; }
 .inv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.inv-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #fff; border: 1px solid #e0e5eb; border-radius: 6px; flex-wrap: wrap; }
+.inv-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; flex-wrap: wrap; }
+.inv-quote-summary { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--color-border); }
 .inv-row-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .inv-row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .inv-delivery-banner { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 10px; border-top: 1px dashed #e0e5eb; }
