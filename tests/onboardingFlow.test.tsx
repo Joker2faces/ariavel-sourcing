@@ -81,6 +81,28 @@ describe('OnboardingFlow — real configuration wizard', () => {
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith(expect.any(Object), true));
   });
 
+  it('traps focus inside the dialog and treats Escape like Skip', async () => {
+    // Regression: this component declared role="dialog" aria-modal="true"
+    // but had no actual focus trap — a keyboard user's Tab press escaped
+    // straight into whatever rendered behind it. useModalA11y now backs
+    // the same aria-modal="true" promise every other overlay in the app
+    // makes.
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    render(
+      <div>
+        <button>outside button</button>
+        <OnboardingFlow apiClient={mockApiClient() as BuyerApiClient} onComplete={vi.fn()} onSkip={onSkip} />
+      </div>,
+    );
+    await screen.findByText('Welcome to Ariavel Sourcing');
+
+    expect(document.activeElement?.closest('.onboarding-card')).toBeTruthy();
+
+    await user.keyboard('{Escape}');
+    expect(onSkip).toHaveBeenCalled();
+  });
+
   it('calls onSkip without persisting any collected settings', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();

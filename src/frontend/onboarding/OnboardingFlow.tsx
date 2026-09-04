@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { BuyerApiClient } from '../api/buyerApiClient';
 import type { TenantSettingsInput } from '../../shared/types/tenantSettings';
 import { defaultTenantSettings } from '../../shared/types/tenantSettings';
 import ariavelLogo from '../../assets/ariavel-logo-optimized.png';
+import { useModalA11y } from '../components/useModalA11y';
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -100,9 +101,17 @@ export function OnboardingFlow({ apiClient, onComplete, onSkip }: Props) {
 
   const STEP_LABELS = ['Welcome', 'Organization', 'Sourcing defaults', 'Evaluation weights', 'Review'];
 
+  // Declared role="dialog"/aria-modal="true" below but had no actual focus
+  // trap — a false modal promise: screen readers announce it as a dialog,
+  // but a keyboard user could Tab straight past it into the app behind.
+  // Escape now behaves like Skip (abandons onboarding without persisting),
+  // matching every other dismissible overlay in the app.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useModalA11y(cardRef, onSkip);
+
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Set up Ariavel Sourcing">
-      <div className="onboarding-card">
+      <div className="onboarding-card" ref={cardRef} tabIndex={-1}>
         <div className="onboarding-header">
           <div className="onboarding-steps-indicator">
             {STEP_LABELS.map((label, i) => (
