@@ -1,4 +1,5 @@
-import { useEffect, useReducer, useState } from 'react';
+import { Children, cloneElement, isValidElement, useEffect, useId, useReducer, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import type { SourcingEvent, SourcingEventInput, SourcingLine, SourcingSupplierSelection, Supplier } from '../../shared/types/domain';
 import type { SourcingEventService } from '../../backend/services/sourcingEventService';
 import { validateSourcingLine, validateReadyForInvitation } from '../../shared/validation/sourcingEventValidation';
@@ -254,6 +255,10 @@ export function CreateEventWizard({
           </div>
         ))}
       </nav>
+      {/* .wizard-steps hides entirely below 650px (no room for four labeled
+          pills) — without a replacement, mobile buyers lost all progress
+          context. This compact text indicator only renders there. */}
+      <div className="wizard-mobile-progress" role="status">Step {step} of {STEPS.length} — {STEPS[step - 1].label}</div>
 
       {saveError && <div className="error-banner" role="alert">{saveError}</div>}
 
@@ -412,11 +417,28 @@ export function CreateEventWizard({
   );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+// The form control is always the first child; a Field may also render a
+// trailing hint (e.g. Reference's "Auto-generated" <small>), so children
+// can't be assumed to be a single ReactElement — only the first child (the
+// actual control) gets aria-invalid/aria-describedby wired to the error.
+// Any aria-describedby the control already sets (e.g. Reference's own hint
+// association) is preserved and merged with the error id, not overwritten.
+function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+  const errorId = useId();
+  const items = Children.toArray(children);
+  const mapped = items.map((item, i) => {
+    if (i !== 0 || !isValidElement(item)) return item;
+    const props = item.props as { 'aria-describedby'?: string };
+    const describedBy = [props['aria-describedby'], error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
+    return cloneElement(item as ReactElement, {
+      'aria-invalid': error ? true : undefined,
+      'aria-describedby': describedBy,
+    });
+  });
   return (
     <div className="field">
-      <label>{label}{children}</label>
-      {error && <span className="field-error" role="alert">{error}</span>}
+      <label>{label}{mapped}</label>
+      {error && <span id={errorId} className="field-error" role="alert">{error}</span>}
     </div>
   );
 }

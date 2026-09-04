@@ -115,6 +115,15 @@
 
 :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--color-text-primary); background: var(--color-surface-secondary); font-synthesis: none; }
 * { box-sizing: border-box; } body { margin: 0; min-width: 320px; background: var(--color-surface-secondary); } button { font: inherit; cursor: pointer; } .app-shell { display: flex; min-height: 100vh; }
+/* No rule previously set an explicit placeholder color anywhere, so example
+   text (e.g. "RFQ-2026-A7K3", "Industrial Solvents Q4") rendered in the same
+   near-white as real typed values in dark mode — confirmed by rendering the
+   RFQ Builder wizard, not just reading source; a real value and an empty
+   field with placeholder text were visually indistinguishable at a glance.
+   ::placeholder is deliberately excluded from prefers-color-scheme overrides
+   below by using currentColor + opacity, so it tracks each input's own text
+   color in both themes without a separate dark-mode rule. */
+input::placeholder, textarea::placeholder { color: currentColor; opacity: 0.5; }
 /* The shell stays a deliberate deep-navy brand surface in both themes —
    distinct from the light/dark content surfaces underneath it, so the
    app has one consistent identity instead of the sidebar just flipping
@@ -334,6 +343,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .wizard-header { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; }
 .wizard-header h1 { margin: 0; font-size: 24px; }
 .wizard-steps { display: flex; gap: 0; margin-bottom: 28px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface); flex-wrap: wrap; }
+.wizard-mobile-progress { display: none; font-size: 12.5px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .04em; margin: -8px 0 20px; }
 .wizard-step { display: flex; align-items: center; gap: 10px; padding: 14px 20px; flex: 1; font-size: 14px; color: var(--color-text-secondary); border-right: 1px solid var(--color-border); min-width: 140px; }
 .wizard-step:last-child { border-right: 0; }
 .wizard-step.active { background: var(--color-info-bg); color: var(--color-brand-blue); font-weight: 600; }
@@ -402,7 +412,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .deadline-badge.deadline-closing { background: #fff2e5; }
 
 @media (max-width: 900px) { .rfq-summary { grid-template-columns: repeat(2, 1fr); }.rfq-controls { grid-template-columns: 1fr 1fr 1fr; }.line-main-row { grid-template-columns: 1fr; }.line-detail-row { grid-template-columns: 1fr 1fr; }.wizard-steps { flex-wrap: wrap; }.wizard-step { flex: 0 0 50%; border-bottom: 1px solid #e0e5eb; } }
-@media (max-width: 650px) { .rfq-table-wrap { display: none; }.rfq-cards { display: grid; gap: 10px; }.rfq-controls { grid-template-columns: 1fr; padding: 10px; border-radius: 8px 8px 0 0; }.rfq-summary { grid-template-columns: 1fr 1fr; gap: 10px; }.rfq-panel { border-radius: 8px; }.line-detail-row { grid-template-columns: 1fr; }.wizard-steps { display: none; }.wizard-body { padding: 18px 16px; }.wizard-footer { padding: 12px 16px; }.wizard-footer-right { gap: 8px; }.bid-matrix-scroll { display: none; }.bid-mobile { display: block !important; } }
+@media (max-width: 650px) { .rfq-table-wrap { display: none; }.rfq-cards { display: grid; gap: 10px; }.rfq-controls { grid-template-columns: 1fr; padding: 10px; border-radius: 8px 8px 0 0; }.rfq-summary { grid-template-columns: 1fr 1fr; gap: 10px; }.rfq-panel { border-radius: 8px; }.line-detail-row { grid-template-columns: 1fr; }.wizard-steps { display: none; }.wizard-mobile-progress { display: block; }.wizard-body { padding: 18px 16px; }.wizard-footer { padding: 12px 16px; }.wizard-footer-right { gap: 8px; }.bid-matrix-scroll { display: none; }.bid-mobile { display: block !important; } }
 
 @media (max-width: 1050px) { .supplier-controls { grid-template-columns: 1fr 1fr 1fr; }.search-field { grid-column: span 2; }.reset-button { justify-self: start; }.supplier-summary { grid-template-columns: repeat(2, 1fr); }.supplier-metric:nth-child(2) { border-right: 0; }.supplier-metric:nth-child(-n+2) { border-bottom: 1px solid #e6eaf0; } }
 @media (max-width: 650px) { .suppliers-content { padding-top: 22px; }.supplier-heading { align-items: stretch; flex-direction: column; gap: 17px; }.heading-actions { flex-direction: column-reverse; align-items: stretch; }.heading-actions .primary-button, .heading-actions .secondary-button { width: 100%; text-align: center; }.supplier-summary { gap: 0; }.supplier-metric { min-height: 78px; padding: 15px; }.supplier-metric strong { font-size: 24px; }.supplier-controls { grid-template-columns: 1fr; border-bottom: 1px solid #dde3ea; border-radius: 8px; }.search-field { grid-column: auto; }.result-count { border: 0; background: transparent; padding: 12px 2px; }.supplier-panel { border-radius: 8px; border: 0; background: transparent; }.supplier-table-wrap { display: none; }.supplier-cards { display: grid; gap: 10px; }.supplier-card { background: #fff; border: 1px solid #dfe4ea; border-radius: 8px; padding: 15px; }.supplier-card-head { display: flex; justify-content: space-between; gap: 12px; }.supplier-card-head > div { display: grid; gap: 4px; }.supplier-card-head small { color: #748094; }.supplier-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin: 15px 0; }.supplier-card dl > div { min-width: 0; }.supplier-card dt { color: #7a8698; font-size: 10px; text-transform: uppercase; }.supplier-card dd { margin: 3px 0 0; font-size: 12px; overflow-wrap: anywhere; }.drawer-header { padding: 0 16px; }.drawer-body { padding: 18px 16px; }.form-grid, .detail-section dl, .source-options { grid-template-columns: 1fr; }.mapping-row { grid-template-columns: 100px minmax(0, 1fr); }.mapping-state { grid-column: 2; }.drawer-actions { position: sticky; bottom: -18px; background: #fff; padding: 14px 0 2px; }.empty-state { min-height: 250px; padding: 24px 18px; }.empty-state > div { flex-direction: column; width: 100%; }.empty-state button { width: 100%; } }

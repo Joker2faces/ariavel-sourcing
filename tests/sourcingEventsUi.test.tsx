@@ -135,6 +135,35 @@ describe('Create Event Wizard', () => {
     expect(await screen.findByText('Event title is required.')).toBeInTheDocument();
   });
 
+  it('renders the Reference field (input + hint text) without crashing, and merges the hint with the error id on validation', async () => {
+    // Regression test: Field's aria wiring uses cloneElement on children, but
+    // Reference is the one field with two children (the <input> plus an
+    // "Auto-generated" <small> hint) — passing an array to cloneElement
+    // previously crashed the whole wizard with "Element type is invalid".
+    const user = userEvent.setup();
+    render(<App eventService={makeEventService()} />);
+    await openSourcingEvents();
+    await screen.findAllByText('RFQ-2026-AA');
+    await user.click(screen.getAllByRole('button', { name: /Create sourcing event/i })[0]);
+    await screen.findByRole('heading', { name: 'Create Sourcing Event' });
+
+    const referenceField = screen.getByLabelText(/Reference/i);
+    expect(referenceField).toBeInTheDocument();
+    expect(screen.getByText('Auto-generated — you can edit it.')).toBeInTheDocument();
+    expect(referenceField.getAttribute('aria-describedby')).toBe('ref-hint');
+
+    await user.clear(referenceField);
+    const titleField = screen.getByLabelText(/Title \*/i);
+    await user.clear(titleField);
+    await user.type(titleField, 'x'); // keep title valid so only Reference fails
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+
+    expect(await screen.findByText('Reference is required.')).toBeInTheDocument();
+    const describedBy = referenceField.getAttribute('aria-describedby') ?? '';
+    expect(describedBy).toContain('ref-hint');
+    expect(referenceField).toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('navigates forward and back through steps', async () => {
     const user = userEvent.setup();
     render(<App eventService={makeEventService()} />);
