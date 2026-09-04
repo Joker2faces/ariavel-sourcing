@@ -176,3 +176,47 @@ describe('Document routes — portal (supplier) token-based access', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('Document routes — buyer viewing supplier-uploaded quote attachments', () => {
+  it('lets the buyer list and download a quote attachment the supplier confirmed', async () => {
+    const { app, invService } = makeApp();
+    const { rawToken, invitationId } = await createInvitationAndOpen(app, invService);
+
+    const initiate = await request(app)
+      .post(`/api/portal/invitations/${rawToken}/quote-attachments`)
+      .send({ filename: 'cert.pdf', mimeType: 'application/pdf', sizeBytes: 4 });
+    await request(app).put(initiate.body.uploadUrl).set('Content-Type', 'application/pdf').send(Buffer.from('%PDF'));
+    await request(app).post(`/api/portal/invitations/${rawToken}/quote-attachments/${initiate.body.attachmentId}/confirm`);
+
+    const buyer = buyerToken();
+    const list = await request(app)
+      .get(`/api/buyer/invitations/${invitationId}/quote-attachments`)
+      .set('Authorization', `Bearer ${buyer}`);
+    expect(list.status).toBe(200);
+    expect(list.body.attachments).toHaveLength(1);
+    expect(list.body.attachments[0].filename).toBe('cert.pdf');
+
+    const download = await request(app)
+      .get(`/api/buyer/attachments/${initiate.body.attachmentId}/download`)
+      .set('Authorization', `Bearer ${buyer}`);
+    expect(download.status).toBe(200);
+    expect(download.body.toString()).toBe('%PDF');
+  });
+
+  it('never lets a buyer from another tenant see the quote attachments', async () => {
+    const { app, invService } = makeApp();
+    const { rawToken, invitationId } = await createInvitationAndOpen(app, invService);
+    const initiate = await request(app)
+      .post(`/api/portal/invitations/${rawToken}/quote-attachments`)
+      .send({ filename: 'cert.pdf', mimeType: 'application/pdf', sizeBytes: 4 });
+    await request(app).put(initiate.body.uploadUrl).set('Content-Type', 'application/pdf').send(Buffer.from('%PDF'));
+    await request(app).post(`/api/portal/invitations/${rawToken}/quote-attachments/${initiate.body.attachmentId}/confirm`);
+
+    const otherTenantBuyer = buyerToken(OTHER_TENANT_ACCOUNT_ID);
+    const list = await request(app)
+      .get(`/api/buyer/invitations/${invitationId}/quote-attachments`)
+      .set('Authorization', `Bearer ${otherTenantBuyer}`);
+    expect(list.status).toBe(200);
+    expect(list.body.attachments).toHaveLength(0);
+  });
+});

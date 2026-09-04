@@ -9,6 +9,7 @@ import { formatDeadlineDisplay, isOverdue, isClosingSoon } from '../../shared/ut
 import { InvitationsPanel } from './InvitationsPanel';
 import { ComparisonPanel } from './ComparisonPanel';
 import { ActivityPanel } from './ActivityPanel';
+import { DocumentsPanel } from './DocumentsPanel';
 import { EventStatusChip } from './eventStatus';
 import { KpiCard } from '../components/KpiCard';
 
@@ -31,7 +32,7 @@ export function EventDetailDrawer({
   onEdit?: () => void;
   onStatusChange?: (status: SourcingEventStatus) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers' | 'invitations' | 'comparison' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'lines' | 'suppliers' | 'invitations' | 'comparison' | 'documents' | 'activity'>('overview');
   const { valid: readyValid } = service.validateReady(event);
 
   // Lightweight, header-only read of invitation state — InvitationsPanel owns
@@ -91,7 +92,7 @@ export function EventDetailDrawer({
           </div>
 
           <nav className="detail-tabs" role="tablist" aria-label="Event details sections">
-            {(['overview', 'lines', 'suppliers', 'invitations', 'comparison', 'activity'] as const).map(tab => (
+            {(['overview', 'lines', 'suppliers', 'invitations', 'comparison', 'documents', 'activity'] as const).map(tab => (
               <button
                 key={tab}
                 role="tab"
@@ -104,6 +105,7 @@ export function EventDetailDrawer({
                   : tab === 'suppliers' ? `Suppliers (${event.supplierSelections.length})`
                   : tab === 'invitations' ? 'Invitations'
                   : tab === 'comparison' ? 'Bid Matrix'
+                  : tab === 'documents' ? 'Documents'
                   : 'Activity'}
               </button>
             ))}
@@ -210,6 +212,15 @@ export function EventDetailDrawer({
           {activeTab === 'comparison' && (
             <ComparisonPanel
               event={event}
+              apiClient={apiClient ?? null}
+              serverAvailable={serverAvailable ?? false}
+            />
+          )}
+
+          {activeTab === 'documents' && (
+            <DocumentsPanel
+              event={event}
+              invitations={invitations ?? []}
               apiClient={apiClient ?? null}
               serverAvailable={serverAvailable ?? false}
             />

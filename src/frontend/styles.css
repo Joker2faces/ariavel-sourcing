@@ -389,6 +389,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 /* M5 — Invitations panel */
 .inv-panel { display: flex; flex-direction: column; gap: 24px; }
+
+.documents-panel { display: flex; flex-direction: column; gap: 24px; }
+.documents-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.documents-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.documents-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; }
+.documents-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.documents-row-info strong { color: var(--color-text-primary); font-size: 13.5px; overflow-wrap: anywhere; }
+.documents-supplier-groups { display: flex; flex-direction: column; gap: 18px; }
+.documents-supplier-group h5 { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .02em; }
 .inv-section h4 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: #334056; text-transform: uppercase; letter-spacing: 0.04em; }
 .inv-pending-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .inv-pending-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e0e5eb; border-radius: 6px; }

@@ -61,6 +61,16 @@ export function createBuyerDocumentRouter(documentService: DocumentService): Rou
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
+  // List a supplier's quote attachments — buyer read-only view (never delete;
+  // these are the supplier's own uploaded evidence, not the buyer's to remove).
+  router.get('/invitations/:invitationId/quote-attachments', async (req: Request, res: Response) => {
+    try {
+      const tenantId = tenantIdFromAuth(req);
+      const attachments = await documentService.listAttachments(tenantId, 'quote', param(req, 'invitationId'));
+      res.json({ attachments });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
   // Delete attachment
   router.delete('/attachments/:id', async (req: Request, res: Response) => {
     try {

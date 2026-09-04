@@ -5,6 +5,7 @@ import type { SourcingLine } from '../../shared/types/domain';
 import type { TenantSettings, TenantSettingsInput } from '../../shared/types/tenantSettings';
 import type { AwardScenario, AwardScenarioInput } from '../../shared/types/award';
 import type { AuditEvent } from '../../server/types/audit';
+import type { Attachment, PresignedUploadResponse } from '../../shared/types/document';
 
 export interface BuyerApiClient {
   listInvitations(eventId: string): Promise<SupplierInvitation[]>;
@@ -32,6 +33,14 @@ export interface BuyerApiClient {
   exportAuditCsv(eventId: string): Promise<Blob>;
   exportTenantData(): Promise<Blob>;
   deleteTenantData(confirm: string): Promise<Record<string, number>>;
+  listEventAttachments(eventId: string): Promise<Attachment[]>;
+  initiateEventAttachmentUpload(eventId: string, filename: string, mimeType: string, sizeBytes: number): Promise<PresignedUploadResponse>;
+  uploadAttachmentBytes(uploadUrl: string, file: File): Promise<void>;
+  confirmAttachmentUpload(attachmentId: string): Promise<Attachment>;
+  deleteAttachment(attachmentId: string): Promise<void>;
+  downloadAttachment(attachmentId: string, filename: string): Promise<void>;
+  listQuoteAttachments(invitationId: string): Promise<Attachment[]>;
+  downloadQuoteTemplate(invitationId: string, rfqReference: string, eventLines: SourcingLine[]): Promise<void>;
 }
 
 export interface CreateInvitationBody {
@@ -194,5 +203,52 @@ export function createBuyerApiClient(baseUrl: string, getToken: () => Promise<st
       const data = await post<{ deleted: Record<string, number> }>('/api/buyer/data/delete', { confirm });
       return data.deleted;
     },
+    async listEventAttachments(eventId) {
+      const data = await get<{ attachments: Attachment[] }>(`/api/buyer/events/${eventId}/attachments`);
+      return data.attachments;
+    },
+    async initiateEventAttachmentUpload(eventId, filename, mimeType, sizeBytes) {
+      return post<PresignedUploadResponse>(`/api/buyer/events/${eventId}/attachments`, { filename, mimeType, sizeBytes });
+    },
+    async uploadAttachmentBytes(uploadUrl, file) {
+      // Presigned/dev-storage upload target — never our own Authorization
+      // header; that's not this endpoint's auth scheme (S3-style presigned
+      // URLs reject unexpected headers, and the dev-storage fallback needs
+      // none at all).
+      const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+    },
+    async confirmAttachmentUpload(attachmentId) {
+      const data = await post<{ attachment: Attachment }>(`/api/buyer/attachments/${attachmentId}/confirm`);
+      return data.attachment;
+    },
+    async deleteAttachment(attachmentId) {
+      const res = await fetch(`${baseUrl}/api/buyer/attachments/${attachmentId}`, { method: 'DELETE', headers: await headers() });
+      if (!res.ok) throw new Error(`API error ${res.status}: delete attachment`);
+    },
+    async downloadAttachment(attachmentId, filename) {
+      const res = await fetch(`${baseUrl}/api/buyer/attachments/${attachmentId}/download`, { headers: await headers() });
+      if (!res.ok) throw new Error(`API error ${res.status}: download attachment`);
+      triggerBlobDownload(await res.blob(), filename);
+    },
+    async listQuoteAttachments(invitationId) {
+      const data = await get<{ attachments: Attachment[] }>(`/api/buyer/invitations/${invitationId}/quote-attachments`);
+      return data.attachments;
+    },
+    async downloadQuoteTemplate(invitationId, rfqReference, eventLines) {
+      const qs = new URLSearchParams({ rfqReference, eventLines: JSON.stringify(eventLines) });
+      const res = await fetch(`${baseUrl}/api/buyer/invitations/${invitationId}/quote-template?${qs}`, { headers: await headers() });
+      if (!res.ok) throw new Error(`API error ${res.status}: quote template`);
+      triggerBlobDownload(await res.blob(), `${rfqReference}-quote-template.csv`);
+    },
   };
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
