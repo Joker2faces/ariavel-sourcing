@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { useModalA11y } from './useModalA11y';
 
 interface Props {
   onClose: () => void;
@@ -7,19 +8,11 @@ interface Props {
   children: ReactNode;
 }
 
-// Shared overlay/dialog shell — Escape closes it, and focus moves onto the
-// dialog itself on open (screen-reader users otherwise land nowhere).
+// Shared overlay/dialog shell — see useModalA11y for the Escape/Tab-trap/
+// focus-return behavior applied to it.
 export function Modal({ onClose, ariaLabel, className, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    ref.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useModalA11y(ref, onClose);
 
   return (
     <div className="portal-modal-overlay" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>

@@ -1,6 +1,7 @@
-import { cloneElement, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, useRef, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import type { Supplier, SupplierInput, SupplierStatus } from '../../shared/types/domain';
 import { validateSupplierInput, type SupplierValidationErrors } from '../../shared/validation/supplierValidation';
+import { useModalA11y } from '../components/useModalA11y';
 
 const emptyInput: SupplierInput = { name: '', status: 'PENDING', preferred: false, sourceType: 'ARIAVEL' };
 const statuses: SupplierStatus[] = ['ACTIVE', 'PENDING', 'INACTIVE', 'BLOCKED'];
@@ -45,7 +46,9 @@ export function SupplierFormDrawer({ supplier, onClose, onSave }: { supplier?: S
 }
 
 export function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return <div className="drawer-backdrop" role="presentation"><section className="drawer" role="dialog" aria-modal="true" aria-label={title}><div className="drawer-header"><h2>{title}</h2><button className="close-button" aria-label={`Close ${title}`} onClick={onClose}>×</button></div><div className="drawer-body">{children}</div></section></div>;
+  const ref = useRef<HTMLElement>(null);
+  useModalA11y(ref, onClose);
+  return <div className="drawer-backdrop" role="presentation" onClick={e => e.target === e.currentTarget && onClose()}><section ref={ref} tabIndex={-1} className="drawer" role="dialog" aria-modal="true" aria-label={title}><div className="drawer-header"><h2>{title}</h2><button className="close-button" aria-label={`Close ${title}`} onClick={onClose}>×</button></div><div className="drawer-body">{children}</div></section></div>;
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactElement<{ id?: string; 'aria-label'?: string; 'aria-invalid'?: boolean; 'aria-describedby'?: string }> }) {

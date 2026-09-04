@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useModalA11y } from '../components/useModalA11y';
 import type { SourcingEvent, SourcingEventStatus } from '../../shared/types/domain';
 import type { SourcingEventService } from '../../backend/services/sourcingEventService';
 import type { RuntimeCapabilities } from '../../backend/runtime/runtimeCapabilities';
@@ -49,9 +50,12 @@ export function EventDetailDrawer({
     ? isOverdue(event.deadline) ? 'deadline-overdue' : isClosingSoon(event.deadline) ? 'deadline-closing' : ''
     : '';
 
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useModalA11y(drawerRef, onClose);
+
   return (
-    <div className="drawer-backdrop" role="dialog" aria-modal="true" aria-label={`Sourcing event ${event.reference}`} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="drawer">
+    <div className="drawer-backdrop" role="presentation" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-label={`Sourcing event ${event.reference}`} tabIndex={-1}>
         <div className="drawer-header">
           <div>
             <h2>{event.reference}</h2>
