@@ -60,7 +60,7 @@ export function EventDetailDrawer({
         <div className="drawer-header">
           <div>
             <h2>{event.reference}</h2>
-            <p style={{ margin: '2px 0 0', color: '#667286', fontSize: 13 }}>{event.title}</p>
+            <p className="detail-header-subtitle">{event.title}</p>
           </div>
           <button className="close-button" onClick={onClose} aria-label="Close">×</button>
         </div>
@@ -71,7 +71,7 @@ export function EventDetailDrawer({
               <EventStatusChip status={event.status} />
               {event.deadline && <span className={`deadline-badge ${deadlineClass}`}>{formatDeadlineDisplay(event.deadline)}</span>}
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div className="detail-hero-actions">
               {onEdit && <button className="secondary-button" onClick={onEdit}>Edit RFQ</button>}
               {(event.status === 'READY_FOR_INVITATION' || event.status === 'OPEN') && (
                 <button className="primary-button" onClick={() => setActiveTab('invitations')}>Generate invitations</button>
@@ -86,7 +86,7 @@ export function EventDetailDrawer({
                 <button className="secondary-button" onClick={() => onStatusChange('DRAFT')}>Back to Draft</button>
               )}
               {onStatusChange && event.status !== 'CANCELLED' && (
-                <button className="secondary-button" style={{ color: '#a31e2a' }} onClick={() => onStatusChange('CANCELLED')}>Cancel Event</button>
+                <button className="secondary-button detail-cancel-button" onClick={() => onStatusChange('CANCELLED')}>Cancel Event</button>
               )}
             </div>
           </div>
@@ -114,7 +114,7 @@ export function EventDetailDrawer({
           {activeTab === 'overview' && (
             <div>
               {invitations && invitations.length > 0 && (
-                <div className="kpi-row kpi-row-4" aria-label="Response progress" style={{ marginBottom: 20 }}>
+                <div className="kpi-row kpi-row-4 detail-kpi-row" aria-label="Response progress">
                   <KpiCard icon="users" label="Invited" value={invitations.length} tone="neutral" />
                   <KpiCard icon="check" label="Opened" value={invitations.filter(i => i.status === 'OPENED' || i.status === 'SUBMITTED').length} tone="info" />
                   <KpiCard icon="trophy" label="Submitted" value={invitations.filter(i => i.status === 'SUBMITTED').length} tone="success" />
@@ -142,7 +142,7 @@ export function EventDetailDrawer({
               {event.description && (
                 <div className="detail-section">
                   <h4>Description</h4>
-                  <p style={{ margin: 0, color: '#334056', fontSize: 14, lineHeight: 1.5 }}>{event.description}</p>
+                  <p className="detail-body-text">{event.description}</p>
                 </div>
               )}
               {event.internalNotes && (
@@ -171,7 +171,7 @@ export function EventDetailDrawer({
                     {event.lines.map((l, i) => (
                       <tr key={l.id}>
                         <td>{i + 1}</td>
-                        <td>{l.description}{l.specification && <><br /><small style={{ color: '#778' }}>{l.specification}</small></>}</td>
+                        <td>{l.description}{l.specification && <><br /><small className="detail-muted-text">{l.specification}</small></>}</td>
                         <td>{l.sku ?? '—'}</td>
                         <td>{l.quantity}</td>
                         <td>{l.unit}</td>
@@ -193,8 +193,10 @@ export function EventDetailDrawer({
                       <strong>{s.supplierNameSnapshot}</strong>
                       {s.supplierCodeSnapshot && <small> · {s.supplierCodeSnapshot}</small>}
                       {s.emailSnapshot
-                        ? <div style={{ fontSize: 12, color: '#667286', marginTop: 2 }}>{s.emailSnapshot}</div>
-                        : <div style={{ fontSize: 12, color: '#a75d05', marginTop: 2 }}>⚠ No email on file at time of selection</div>}
+                        ? <div className="detail-muted-text detail-supplier-email">{s.emailSnapshot}</div>
+                        : <div className="detail-warning-text detail-supplier-email" role="status">
+                            <span aria-hidden="true">⚠</span> No email on file at time of selection
+                          </div>}
                     </li>
                   ))}
                 </ul>}
