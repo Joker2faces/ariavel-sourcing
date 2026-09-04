@@ -81,6 +81,20 @@ describe('transformMondayItemToInput', () => {
     expect(input?.mondayItemId).toBe('real-item-99');
   });
 
+  it('UAT regression: reads Supplier Name from item.name, never from column_values["name"]', () => {
+    // The monday item Name field is a first-class item property, not a
+    // regular column — column_values never contains an entry for it. If
+    // this ever regressed to reading columnValues['name'] instead, a real
+    // board's items would import as blank/unmapped suppliers even though
+    // the mapping itself validated as complete.
+    const { input, warnings } = transformMondayItemToInput(
+      item({ name: 'Supplier Alpha', columnValues: { name: 'this must be ignored' } }),
+      [nameMapping],
+    );
+    expect(input?.name).toBe('Supplier Alpha');
+    expect(warnings).toHaveLength(0);
+  });
+
   it('handles null column values gracefully', () => {
     const { input, warnings } = transformMondayItemToInput(
       item({ columnValues: { email_col: null } }),

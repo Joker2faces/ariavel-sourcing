@@ -45,6 +45,25 @@ const BOARD_ITEMS_PAGE_QUERY = `
   }
 `;
 
+// monday's `columns` query never includes the board's built-in item Name
+// field — it isn't a real column, it's a first-class property of the item
+// (item.name), fetched separately from column_values. Confirmed live during
+// UAT: a real board's Supplier Name mapping dropdown had no way to select
+// it, making even the minimum valid mapping impossible. `mondayColumnId`
+// already treats the sentinel id "name" specially end to end — see
+// transformMondayItemToInput/previewMappedSuppliers in
+// shared/mapping/supplierMapping.ts, which read item.name rather than
+// column_values["name"] — and the mock board provider used by every local
+// dev/test run already fakes this column, which is exactly why the gap was
+// invisible until real monday UAT. This constant is the single source of
+// truth for that sentinel id so the read path and this synthesized option
+// can never drift apart.
+export const MONDAY_ITEM_NAME_COLUMN_ID = 'name';
+
+function synthesizeNameColumn(): MondayColumnDescriptor {
+  return { id: MONDAY_ITEM_NAME_COLUMN_ID, title: 'Item / Name', type: 'name' };
+}
+
 interface RawBoard { id: string; name: string; }
 interface RawColumn { id: string; title: string; type: string; }
 interface RawColumnValue { id: string; text: string | null; }
@@ -89,6 +108,14 @@ export function createMondayApiBoardProvider(runtime: MondayRuntimeAdapter): Mon
       if (!rawBoard) return undefined;
 
       const columns = (rawBoard.columns ?? []).map(normalizeColumn);
+      // Real monday boards never return the item Name field from `columns`
+      // (see MONDAY_ITEM_NAME_COLUMN_ID above); offer it explicitly so
+      // Supplier Name — the one required field — is always mappable. Guard
+      // against ever double-adding it in case a future API version starts
+      // including it under the same id.
+      if (!columns.some(column => column.id === MONDAY_ITEM_NAME_COLUMN_ID)) {
+        columns.unshift(synthesizeNameColumn());
+      }
 
       const itemResult = await runtime.api(BOARD_ITEMS_PAGE_QUERY, { boardId: String(boardId), limit: SAMPLE_ITEM_COUNT }) as {
         data: { boards: Array<{ items_page: ItemsPageResult }> }

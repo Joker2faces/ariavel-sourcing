@@ -104,6 +104,47 @@ describe('MondayApiBoardProvider.getBoard', () => {
     const provider = createMondayApiBoardProvider(makeRuntime({ boardColumns: { data: { boards: [] } } }));
     expect(await provider.getBoard('nonexistent')).toBeUndefined();
   });
+
+  it('UAT regression: synthesizes the item Name field when the real monday API omits it from `columns`', async () => {
+    // monday's `columns` query never returns the built-in item Name field —
+    // it's a first-class item property (item.name), not a regular column.
+    // MOCK_COLUMNS_RESPONSE above already fakes a "name" entry, which is
+    // exactly why this gap went unnoticed until live UAT against a real
+    // board: Supplier Name (the one required field) had no valid mapping
+    // option at all. This fixture reproduces the real API shape — no "name"
+    // entry — the way monday's Τεστ board actually responded.
+    const columnsResponseWithoutName = {
+      data: {
+        boards: [{
+          id: '333',
+          name: 'Τεστ',
+          columns: [
+            { id: 'email_col', title: 'Email', type: 'email' },
+            { id: 'country_col', title: 'Country', type: 'country' },
+          ],
+        }],
+      },
+    };
+    const provider = createMondayApiBoardProvider(makeRuntime({
+      boardColumns: columnsResponseWithoutName,
+      itemsPage: { data: { boards: [{ items_page: { cursor: null, items: [] } }] } },
+    }));
+    const board = await provider.getBoard('333');
+    expect(board?.columns).toEqual([
+      { id: 'name', title: 'Item / Name', type: 'name' },
+      { id: 'email_col', title: 'Email', type: 'email' },
+      { id: 'country_col', title: 'Country', type: 'country' },
+    ]);
+  });
+
+  it('does not double-add the synthesized Name column if the API ever starts returning one under id "name"', async () => {
+    const provider = createMondayApiBoardProvider(makeRuntime({
+      boardColumns: MOCK_COLUMNS_RESPONSE, // already includes { id: 'name', ... }
+      itemsPage: { data: { boards: [{ items_page: { cursor: null, items: [] } }] } },
+    }));
+    const board = await provider.getBoard('111');
+    expect(board?.columns.filter(c => c.id === 'name')).toHaveLength(1);
+  });
 });
 
 describe('MondayApiBoardProvider.listBoardItems', () => {
