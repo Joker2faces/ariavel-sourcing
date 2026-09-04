@@ -72,6 +72,9 @@ describe('mondayRoleProvider', () => {
       ['VIEW_ONLY', { isAdmin: false, isGuest: false, isViewOnly: true }],
       ['AGENT_MEMBER', { isAdmin: false, isGuest: false, isViewOnly: true }],
       ['PORTAL', { isAdmin: false, isGuest: false, isViewOnly: true }],
+      // A kind monday adds in the future, before this code is updated for
+      // it, must deny-by-default rather than silently reading as "member".
+      ['FUTURE_KIND', { isAdmin: false, isGuest: false, isViewOnly: true }],
     ] as const)('kind "%s" maps to %j', async (kind, expected) => {
       // is_admin true here proves kind wins even when the legacy field disagrees.
       global.fetch = vi.fn().mockResolvedValue({

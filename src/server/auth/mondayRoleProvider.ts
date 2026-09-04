@@ -49,16 +49,24 @@ interface RawMe {
   is_view_only?: boolean;
 }
 
+const KNOWN_KINDS = new Set(['ADMIN', 'MEMBER', 'GUEST', 'VIEW_ONLY', 'AGENT_MEMBER', 'PORTAL']);
+
 function roleFromRawMe(me: RawMe): MondayUserRole {
   const kind = me.kind?.toUpperCase();
   if (kind) {
     // AGENT_MEMBER and PORTAL are non-human/portal-scoped kinds introduced
     // alongside `kind` — treat them as view-only rather than silently
     // granting edit capability to a kind this code doesn't recognize yet.
+    // Any kind outside the set monday currently documents (a future kind
+    // added on monday's side before this code is updated for it) must also
+    // deny mutation by default — falling through to
+    // { isAdmin: false, isGuest: false, isViewOnly: false } would read as
+    // "ordinary member" to requireAwardEditCapability and silently grant
+    // write access to a role this code has never evaluated.
     return {
       isAdmin: kind === 'ADMIN',
       isGuest: kind === 'GUEST',
-      isViewOnly: kind === 'VIEW_ONLY' || kind === 'AGENT_MEMBER' || kind === 'PORTAL',
+      isViewOnly: kind === 'VIEW_ONLY' || kind === 'AGENT_MEMBER' || kind === 'PORTAL' || !KNOWN_KINDS.has(kind),
     };
   }
   return {

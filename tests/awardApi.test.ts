@@ -269,6 +269,20 @@ describe('Award API', () => {
       expect(res.status).toBe(403);
     });
 
+    it('denies a mutation when the role resolves to view-only — the shape roleFromRawMe now produces for an unrecognized/future monday kind (see mondayRoleProvider.test.ts)', async () => {
+      // End-to-end half of that regression: mondayRoleProvider.test.ts proves
+      // an unrecognized kind (e.g. a future one monday adds before this code
+      // is updated for it) maps to isViewOnly: true, not the previous
+      // all-false "ordinary member" shape. This proves that shape is denied
+      // here, at the actual route.
+      const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: false, isViewOnly: true }));
+      const res = await request(app)
+        .post(`/api/buyer/events/${EVENT_ID}/award-scenarios/recommended`)
+        .set('Authorization', `Bearer ${makeBuyerToken()}`)
+        .send({ name: 'Recommended', comparisonSnapshotId: SNAP_ID, eventLines: EVENT_LINES });
+      expect(res.status).toBe(403);
+    });
+
     it('blocks scenario creation for a monday guest', async () => {
       const app = buildApp(() => Promise.resolve({ isAdmin: false, isGuest: true, isViewOnly: false }));
       const res = await request(app)
